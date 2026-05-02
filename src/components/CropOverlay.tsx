@@ -4,7 +4,7 @@ import { X, RotateCcw } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import type { CropValues } from '../lib/pdf-utils';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+if (typeof window !== 'undefined') { pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`; }
 
 interface CropOverlayProps {
   pdfBuffer: ArrayBuffer;

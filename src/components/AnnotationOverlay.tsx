@@ -5,7 +5,7 @@ import { Slider } from '@/components/ui/slider';
 import { X, Type, Highlighter, ImageIcon, PenTool, Plus, Minus, Trash2, Undo2 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+if (typeof window !== 'undefined') { pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`; }
 
 export type AnnotationType = 'text' | 'highlight' | 'stamp' | 'signature';
 

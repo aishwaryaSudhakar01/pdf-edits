@@ -26,7 +26,7 @@ import {
 } from '../lib/pdf-utils';
 import { useHistory } from '../lib/useHistory';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+if (typeof window !== 'undefined') { pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`; }
 
 /* ── Tool definitions ──────────────────────────── */
 
