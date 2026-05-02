@@ -4,7 +4,7 @@ import { Undo2, Trash2, X, Plus, Minus } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import type { RedactRect } from '../lib/pdf-utils';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+if (typeof window !== 'undefined') { pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`; }
 
 interface ScreenRect { x: number; y: number; width: number; height: number }
 
