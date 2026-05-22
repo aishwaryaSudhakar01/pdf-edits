@@ -225,7 +225,9 @@ export async function buildFinalPdf(
             x: ann.x, y: ann.y - ann.height,
             width: ann.width, height: ann.height,
           });
-        } catch (e) { console.warn('Failed to embed stamp', e); }
+        } catch (e) {
+          throw new PdfOpError('stamp', `${describeOp('stamp')} failed on page ${i + 1}: ${(e as Error)?.message || 'invalid image data'}`, { pageIndex: i, cause: e });
+        }
       } else if (ann.type === 'signature' && ann.signatureData) {
         try {
           const img = await doc.embedPng(ann.signatureData);
@@ -233,8 +235,13 @@ export async function buildFinalPdf(
             x: ann.x, y: ann.y - ann.height,
             width: ann.width, height: ann.height,
           });
-        } catch (e) { console.warn('Failed to embed signature', e); }
-      }
+        } catch (e) {
+          throw new PdfOpError('signature', `${describeOp('signature')} failed on page ${i + 1}: ${(e as Error)?.message || 'invalid signature data'}`, { pageIndex: i, cause: e });
+        }
+      } else if (ann.type === 'stamp' && !ann.imageData) {
+        throw new PdfOpError('stamp', `${describeOp('stamp')} failed on page ${i + 1}: missing image data`, { pageIndex: i });
+      } else if (ann.type === 'signature' && !ann.signatureData) {
+        throw new PdfOpError('signature', `${describeOp('signature')} failed on page ${i + 1}: missing signature data`, { pageIndex: i });
     }
   }
 
