@@ -25,10 +25,15 @@ const PageThumbnail = ({ pdfBuffer, pageIndex, width = 150, rotation = 0, overla
 
   useEffect(() => {
     let cancelled = false;
+    let renderTask: { cancel: () => void; promise: Promise<void> } | null = null;
+    let pdfDoc: { destroy: () => Promise<void> } | null = null;
     const render = async () => {
       try {
         const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer.slice(0)) }).promise;
+        if (cancelled) { pdf.destroy(); return; }
+        pdfDoc = pdf;
         const page = await pdf.getPage(pageIndex + 1);
+        if (cancelled) return;
         const viewport = page.getViewport({ scale: 1, rotation });
         const pdfW = viewport.width;
         const pdfH = viewport.height;
@@ -42,7 +47,8 @@ const PageThumbnail = ({ pdfBuffer, pageIndex, width = 150, rotation = 0, overla
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+        renderTask = page.render({ canvasContext: ctx, viewport: scaledViewport }) as unknown as { cancel: () => void; promise: Promise<void> };
+        await renderTask.promise;
         if (cancelled) return;
 
         const cw = scaledViewport.width;
@@ -125,13 +131,21 @@ const PageThumbnail = ({ pdfBuffer, pageIndex, width = 150, rotation = 0, overla
         }
 
         if (!cancelled) setRendered(true);
-      } catch (err) {
-        console.error('Thumbnail render failed:', err);
+      } catch (err: unknown) {
+        // Ignore cancellation errors from pdf.js
+        const name = (err as { name?: string })?.name;
+        if (name === 'RenderingCancelledException') return;
+        if (!cancelled) console.error('Thumbnail render failed:', err);
+      } finally {
+        if (pdfDoc) { try { await pdfDoc.destroy(); } catch { /* noop */ } }
       }
     };
     setRendered(false);
     render();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (renderTask) { try { renderTask.cancel(); } catch { /* noop */ } }
+    };
   }, [pdfBuffer, pageIndex, width, rotation, overlays]);
 
   return (
