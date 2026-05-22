@@ -220,13 +220,15 @@
        the content. */
     background-image:
       /* blush in the top-left */
-      radial-gradient(ellipse 85% 75% at 0% 0%,    oklch(0.93 0.045 350 / 0.85), transparent 60%),
+      radial-gradient(ellipse 90% 80% at 0% 0%,     oklch(0.91 0.05 350) 0%,  transparent 55%),
       /* mint in the bottom-right */
-      radial-gradient(ellipse 85% 75% at 100% 100%, oklch(0.94 0.045 155 / 0.8),  transparent 60%),
+      radial-gradient(ellipse 90% 80% at 100% 100%, oklch(0.93 0.05 155) 0%,  transparent 55%),
       /* cream warming the top-right */
-      radial-gradient(ellipse 70% 60% at 100% 0%,  oklch(0.965 0.035 85 / 0.7),  transparent 60%),
+      radial-gradient(ellipse 75% 65% at 100% 0%,   oklch(0.955 0.04 85) 0%,  transparent 55%),
       /* faint lilac in the bottom-left, sparing */
-      radial-gradient(ellipse 60% 55% at 0% 100%,  oklch(0.92 0.028 295 / 0.5),  transparent 65%);
+      radial-gradient(ellipse 65% 60% at 0% 100%,   oklch(0.91 0.03 295) 0%,  transparent 60%),
+      /* warm cream base so the calm middle still reads warm */
+      linear-gradient(135deg, oklch(0.985 0.015 80), oklch(0.99 0.008 200));
     background-attachment: fixed;
     background-repeat: no-repeat;
     background-size: cover;
