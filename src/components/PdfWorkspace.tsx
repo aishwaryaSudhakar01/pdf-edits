@@ -306,7 +306,7 @@ const PdfWorkspace = () => {
   const [wmAngle, setWmAngle] = useState(-45);
 
   // Redact
-  const [redactions, setRedactions] = useState<Map<number, RedactRect[]>>(new Map());
+  // Redact — redactions Map lives in editorHistory
   const [redactPageIdx, setRedactPageIdx] = useState<number | null>(null);
 
   // Crop
