@@ -593,7 +593,7 @@ const PdfWorkspace = () => {
     }
 
     setProcessingState({ steps: allDisplaySteps, failedIndex: null });
-    retryFromRef.current = retryFrom;
+    
 
     try {
       let blob: Blob | null = null;
