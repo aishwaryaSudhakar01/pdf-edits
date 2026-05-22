@@ -70,7 +70,7 @@ interface QueueItem {
 }
 
 const STEP_META: Record<QueueStepType, { label: string; icon: React.ElementType; tintVar: string }> = {
-  organize: { label: 'Organize', icon: Layers, tintVar: 'var(--tint-cream)' },
+  organize: { label: 'Organize', icon: Layers, tintVar: 'var(--tint-warm-gray)' },
   rotate: { label: 'Rotate', icon: RotateCw, tintVar: 'var(--tint-warm-gray)' },
   pageNumbers: { label: 'Page numbers', icon: Hash, tintVar: 'var(--tint-butter)' },
   watermark: { label: 'Watermark', icon: Droplets, tintVar: 'var(--tint-mint)' },
@@ -78,7 +78,7 @@ const STEP_META: Record<QueueStepType, { label: string; icon: React.ElementType;
   crop: { label: 'Crop', icon: Crop, tintVar: 'var(--tint-warm-gray)' },
   resize: { label: 'Resize', icon: Maximize, tintVar: 'var(--tint-cream)' },
   compress: { label: 'Compress', icon: Zap, tintVar: 'var(--tint-cream)' },
-  metadata: { label: 'Metadata', icon: FileEdit, tintVar: 'var(--tint-blush)' },
+  metadata: { label: 'Metadata', icon: FileEdit, tintVar: 'var(--tint-lavender)' },
   annotations: { label: 'Annotations', icon: Type, tintVar: 'var(--tint-blush)' },
   split: { label: 'Split', icon: Scissors, tintVar: 'var(--tint-cream)' },
 };
@@ -1074,7 +1074,7 @@ const PdfWorkspace = () => {
 
   /* ── Render ──────────────────────────────────── */
   return (
-    <div className="flex h-screen min-w-0 w-full max-w-full overflow-hidden bg-background flex-col md:flex-row">
+    <div className="flex h-screen min-w-0 w-full max-w-full overflow-hidden flex-col md:flex-row">
       {/* Hidden inputs */}
       <input ref={fileInputRef} type="file" accept=".pdf,application/pdf" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0" onChange={e => { if (e.target.files) addFiles(Array.from(e.target.files)); }} />
       <input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/jpg" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0" onChange={e => { if (e.target.files) addImages(Array.from(e.target.files)); }} />
@@ -1121,8 +1121,8 @@ const PdfWorkspace = () => {
         {/* Drop zone */}
         <div className={cn("flex items-start justify-center shrink-0", hasPdfPages && !isImageTool ? "p-2 px-5" : "p-8", (!hasPdfPages || (isImageTool && uploadedImages.length === 0)) && "flex-1 pt-12")}>
           <div
-            className={cn("relative w-full border-2 border-dashed border-border rounded-lg bg-secondary text-center cursor-pointer transition-colors hover:bg-accent",
-              hasPdfPages && !isImageTool ? "p-2 px-4" : "max-w-[500px] p-12")}
+            className={cn("relative w-full border-2 border-dashed border-border rounded-2xl text-center cursor-pointer transition-colors",
+              hasPdfPages && !isImageTool ? "p-2 px-4 bg-secondary hover:bg-accent" : "max-w-[520px] p-14 bg-card/50 backdrop-blur-sm hover:bg-card/70")}
             onClick={isImageTool ? openImagePicker : openFilePicker}
             onDragOver={e => e.preventDefault()}
             onDrop={e => { e.preventDefault(); const files = Array.from(e.dataTransfer.files); isImageTool ? addImages(files) : addFiles(files); }}
