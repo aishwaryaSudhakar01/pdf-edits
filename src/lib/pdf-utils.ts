@@ -1,6 +1,7 @@
 import { PDFDocument, rgb, StandardFonts, degrees, PDFPage } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import type { Annotation } from '../components/AnnotationOverlay';
+import { getImageBytes } from './image-store';
 
 /* ── Errors ────────────────────────────────────── */
 
