@@ -41,7 +41,7 @@ const TOOLS: { id: ToolType; label: string; desc: string; icon: React.ElementTyp
   { id: 'compress', label: 'Compress', desc: 'Reduce size', icon: Zap, group: 'Enhance' },
   { id: 'pageNumbers', label: 'Page Numbers', desc: 'Add numbering', icon: Hash, group: 'Enhance' },
   { id: 'watermark', label: 'Watermark', desc: 'Text overlay', icon: Droplets, group: 'Enhance' },
-  { id: 'redact', label: 'Black-out', desc: 'Visual cover only — does NOT remove underlying text', icon: EyeOff, group: 'Modify' },
+  { id: 'redact', label: 'Black-out', desc: 'Visual cover only. Does NOT remove underlying text', icon: EyeOff, group: 'Modify' },
   { id: 'crop', label: 'Crop', desc: 'Trim margins', icon: Crop, group: 'Modify' },
   { id: 'annotate', label: 'Text', desc: 'Add text', icon: Type, group: 'Annotate' },
   { id: 'highlight', label: 'Highlight', desc: 'Mark areas', icon: Highlighter, group: 'Annotate' },
@@ -1121,7 +1121,7 @@ const PdfWorkspace = () => {
               <>
                 {isImageTool ? <Image size={40} className="text-muted-foreground mx-auto mb-3" /> : <FileText size={40} className="text-muted-foreground mx-auto mb-3" />}
                 <p className="font-medium text-sm mb-2">{isImageTool ? 'Drop images here or click to browse' : 'Drop PDFs here or click to browse'}</p>
-                <p className="text-muted-foreground text-sm">{isImageTool ? 'PNG, JPG — will be converted to PDF' : 'All tools are available once you upload'}</p>
+                <p className="text-muted-foreground text-sm">{isImageTool ? 'PNG, JPG. Will be converted to PDF' : 'All tools are available once you upload'}</p>
               </>
             ) : (
               <p className="text-muted-foreground text-sm">Drop PDFs here or click to add more files</p>
@@ -1323,7 +1323,7 @@ const PdfWorkspace = () => {
                     {hasValidGroups && (
                       <div className="p-3 bg-secondary rounded text-xs text-muted-foreground">{groupSummaries.join(' | ')}</div>
                     )}
-                    {hasEmptyActiveGroup && <p className="text-destructive text-sm">Group {activeSplitGroup + 1} is empty — click pages to add them</p>}
+                    {hasEmptyActiveGroup && <p className="text-destructive text-sm">Group {activeSplitGroup + 1} is empty. Click pages to add them</p>}
                   </div>
                 );
               })()}
@@ -1471,7 +1471,7 @@ const PdfWorkspace = () => {
                   </div>
 
                   {wmEnabled && !wmText && wmTextByPage.size === 0 && (
-                    <p className="text-xs text-amber-500">⚠ Watermark enabled but no text set — it won't appear in your output.</p>
+                    <p className="text-xs text-amber-500">⚠ Watermark enabled but no text set. It will not appear in your output.</p>
                   )}
 
                   {/* Per-page watermark status */}
