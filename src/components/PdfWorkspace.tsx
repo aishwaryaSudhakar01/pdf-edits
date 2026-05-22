@@ -1066,8 +1066,8 @@ const PdfWorkspace = () => {
   return (
     <div className="flex h-screen min-w-0 w-full max-w-full overflow-hidden bg-background flex-col md:flex-row">
       {/* Hidden inputs */}
-      <input ref={fileInputRef} type="file" accept=".pdf" multiple className="hidden" onChange={e => { if (e.target.files) addFiles(Array.from(e.target.files)); }} />
-      <input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/jpg" multiple className="hidden" onChange={e => { if (e.target.files) addImages(Array.from(e.target.files)); }} />
+      <input ref={fileInputRef} type="file" accept=".pdf,application/pdf" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0" onChange={e => { if (e.target.files) addFiles(Array.from(e.target.files)); }} />
+      <input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/jpg" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0" onChange={e => { if (e.target.files) addImages(Array.from(e.target.files)); }} />
 
       {/* ── Mobile menu bar ──────────────────── */}
       <div className="flex items-center p-3 border-b border-border bg-sidebar-background gap-3 md:hidden">
@@ -1111,12 +1111,32 @@ const PdfWorkspace = () => {
         {/* Drop zone */}
         <div className={cn("flex items-start justify-center shrink-0", hasPdfPages && !isImageTool ? "p-2 px-5" : "p-8", (!hasPdfPages || (isImageTool && uploadedImages.length === 0)) && "flex-1 pt-12")}>
           <div
-            className={cn("w-full border-2 border-dashed border-border rounded-lg bg-secondary text-center cursor-pointer transition-colors hover:bg-accent",
+            className={cn("relative w-full border-2 border-dashed border-border rounded-lg bg-secondary text-center cursor-pointer transition-colors hover:bg-accent",
               hasPdfPages && !isImageTool ? "p-2 px-4" : "max-w-[500px] p-12")}
             onClick={isImageTool ? openImagePicker : openFilePicker}
             onDragOver={e => e.preventDefault()}
             onDrop={e => { e.preventDefault(); const files = Array.from(e.dataTransfer.files); isImageTool ? addImages(files) : addFiles(files); }}
           >
+            {!isImageTool && (
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                multiple
+                aria-label="Add PDF files"
+                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                onChange={e => { if (e.target.files) addFiles(Array.from(e.target.files)); e.currentTarget.value = ''; }}
+              />
+            )}
+            {isImageTool && (
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/jpg"
+                multiple
+                aria-label="Add image files"
+                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                onChange={e => { if (e.target.files) addImages(Array.from(e.target.files)); e.currentTarget.value = ''; }}
+              />
+            )}
             {!hasPdfPages || (isImageTool && uploadedImages.length === 0) ? (
               <>
                 {isImageTool ? <Image size={40} className="text-muted-foreground mx-auto mb-3" /> : <FileText size={40} className="text-muted-foreground mx-auto mb-3" />}
