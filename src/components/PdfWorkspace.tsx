@@ -350,27 +350,22 @@ const PdfWorkspace = () => {
   const hasPdfPages = pages.length > 0;
   const hasMetadata = !!(metaTitle || metaAuthor || metaSubject || metaKeywords);
 
-  /* ── Edit Queue Management ────────────────────── */
-  const addToQueue = useCallback((type: QueueStepType) => {
-    setEditQueue(prev => {
+  /* ── Edit Queue Management ──────────────────────
+     The user's queue order is the source of truth. We never silently move steps. */
+  const addToQueueIncidental = useCallback((type: QueueStepType) => {
+    // Auto-adds from useEffect: never push history entries the user didn't make.
+    updateEditQueue(prev => {
       if (prev.some(item => item.type === type)) return prev;
       const newItem: QueueItem = { id: crypto.randomUUID(), type };
-      const newQueue = [...prev, newItem];
-      // If adding a non-split item and split exists, ensure split stays last
-      if (type !== 'split') {
-        const splitIdx = newQueue.findIndex(i => i.type === 'split');
-        if (splitIdx >= 0 && splitIdx !== newQueue.length - 1) {
-          const [splitItem] = newQueue.splice(splitIdx, 1);
-          newQueue.push(splitItem);
-        }
-      }
-      return newQueue;
+      return [...prev, newItem];
     });
-  }, []);
+  }, [updateEditQueue]);
+  // Kept for explicit user-initiated adds (currently unused, retained for future use)
+  const addToQueue = addToQueueIncidental;
 
   const removeFromQueue = useCallback((type: QueueStepType) => {
     setEditQueue(prev => prev.filter(item => item.type !== type));
-    // Clear the corresponding settings
+    // Clear the corresponding settings (these are user actions → history entry already pushed)
     const clearMap: Record<string, () => void> = {
       rotate: () => setPages(prev => prev.map(p => ({ ...p, rotation: 0 }))),
       pageNumbers: () => setPnEnabled(false),
@@ -384,7 +379,7 @@ const PdfWorkspace = () => {
       split: () => { setSplitGroups([[]]); setActiveSplitGroup(0); },
     };
     clearMap[type]?.();
-  }, [setPages]);
+  }, [setPages, setEditQueue, setRedactions, setCropMap, setAnnotationsMap, setSplitGroups]);
 
   const reorderQueue = useCallback((fromIdx: number, toIdx: number) => {
     if (fromIdx === toIdx) return;
@@ -392,17 +387,12 @@ const PdfWorkspace = () => {
       const newQueue = [...prev];
       const [item] = newQueue.splice(fromIdx, 1);
       newQueue.splice(toIdx, 0, item);
-      // Enforce split at end
-      const splitIdx = newQueue.findIndex(i => i.type === 'split');
-      if (splitIdx >= 0 && splitIdx !== newQueue.length - 1) {
-        const [splitItem] = newQueue.splice(splitIdx, 1);
-        newQueue.push(splitItem);
-        setSplitMovedToast(true);
-        setTimeout(() => setSplitMovedToast(false), 3000);
-      }
+      // The user's chosen order is honored. Ambiguities are surfaced inline,
+      // not silently corrected.
       return newQueue;
     });
-  }, []);
+  }, [setEditQueue]);
+
 
   /* ── Auto-add to queue when settings become active ── */
   useEffect(() => {
