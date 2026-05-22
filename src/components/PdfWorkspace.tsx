@@ -1276,9 +1276,13 @@ const PdfWorkspace = () => {
                             <span className="text-background text-xs font-bold">✓</span>
                           </div>
                         )}
-                        {hasRedaction && (
-                          <div className={cn("absolute top-1.5 z-[2] bg-red-600/90 rounded px-1.5 py-px", isSelected ? "left-[34px]" : "left-1.5")}>
-                            <span className="text-white text-[10px] font-semibold">REDACTED</span>
+                        {editBadges.length > 0 && (
+                          <div className={cn("absolute top-1.5 z-[2] flex flex-wrap gap-1", isSelected ? "left-[34px]" : "left-1.5")}>
+                            {editBadges.map(b => (
+                              <div key={b.label} className={cn("rounded px-1.5 py-px", b.bg)}>
+                                <span className="text-white text-[10px] font-semibold">{b.label}</span>
+                              </div>
+                            ))}
                           </div>
                         )}
                         <button onClick={e => { e.stopPropagation(); removePage(page.id); }}
