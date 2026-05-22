@@ -11,10 +11,9 @@ import {
   FileDown, FileText, Trash2, Zap, Loader2, Plus, RotateCcw, X,
   Scissors, RotateCw, Hash, Droplets, EyeOff, Crop, Image, Camera,
   Layers, ArrowDown, RotateCcw as RotateCcwIcon, ChevronRight, FileType,
-  Moon, Sun, FileEdit, Type, Highlighter, Stamp, PenTool, Undo2, Redo2, Maximize,
+  FileEdit, Type, Highlighter, Stamp, PenTool, Undo2, Redo2, Maximize,
   Menu as MenuIcon, Play, Clock, Check, GripVertical, AlertTriangle,
 } from 'lucide-react';
-import { useThemeMode } from '../lib/theme-context';
 import AnnotationOverlay, { type Annotation, type AnnotationType } from './AnnotationOverlay';
 import PageThumbnail, { type ThumbnailOverlays } from './PageThumbnail';
 import RedactOverlay from './RedactOverlay';
@@ -188,8 +187,6 @@ const emptySnapshot = (): EditorSnapshot => ({
 });
 
 const PdfWorkspace = () => {
-  const { mode: themeMode, toggle: toggleTheme } = useThemeMode();
-
   // Core state — the ORIGINAL file is never modified
   const [sources, setSources] = useState<Map<string, SourceFile>>(new Map());
 
@@ -1085,35 +1082,18 @@ const PdfWorkspace = () => {
           <MenuIcon size={18} />
         </button>
         <span className="font-medium text-sm text-foreground tracking-tight">PDF Tools</span>
-        <div className="ml-auto">
-          <button onClick={toggleTheme} className="flex items-center justify-center w-8 h-8 rounded-md bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
-            {themeMode === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-        </div>
       </div>
 
       {/* ── Mobile Drawer ──────────────────────── */}
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
         <SheetContent side="left" className="p-3 overflow-y-auto bg-sidebar-background">
           {renderToolList(() => setMobileMenuOpen(false))}
-          <div className="border-t border-border mt-6 pt-3">
-            <button onClick={toggleTheme} className="flex items-center gap-3 px-3 py-1.5 rounded-md cursor-pointer bg-transparent border-none w-full text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
-              {themeMode === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-              <span className="text-[13px]">{themeMode === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
-            </button>
-          </div>
         </SheetContent>
       </Sheet>
 
       {/* ── Desktop Sidebar ────────────────────── */}
       <div className="hidden md:flex md:flex-col md:w-[220px] md:border-r md:border-border md:bg-sidebar-background md:overflow-y-auto md:py-2 md:px-2 md:shrink-0">
         <div className="flex-1">{renderToolList()}</div>
-        <div className="px-2 py-3 border-t border-border mt-2">
-          <button onClick={toggleTheme} className="flex items-center gap-3 px-3 py-1.5 rounded-md cursor-pointer bg-transparent border-none w-full text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
-            {themeMode === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-            <span className="text-[13px]">{themeMode === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
-          </button>
-        </div>
       </div>
 
       {/* ── Main content ───────────────────────── */}
