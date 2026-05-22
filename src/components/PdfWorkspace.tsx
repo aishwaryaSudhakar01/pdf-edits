@@ -169,23 +169,74 @@ const ProcessingOverlay = ({ state, onRetry, onCancel }: {
 
 /* ── Component ─────────────────────────────────── */
 
+interface EditorSnapshot {
+  pages: PageItem[];
+  annotationsMap: Map<number, Annotation[]>;
+  redactions: Map<number, RedactRect[]>;
+  cropMap: Map<number, CropValues>;
+  splitGroups: string[][];
+  editQueue: QueueItem[];
+}
+
+const emptySnapshot = (): EditorSnapshot => ({
+  pages: [],
+  annotationsMap: new Map(),
+  redactions: new Map(),
+  cropMap: new Map(),
+  splitGroups: [[]],
+  editQueue: [],
+});
+
 const PdfWorkspace = () => {
   const { mode: themeMode, toggle: toggleTheme } = useThemeMode();
 
   // Core state — the ORIGINAL file is never modified
   const [sources, setSources] = useState<Map<string, SourceFile>>(new Map());
-  const pagesHistory = useHistory<PageItem[]>([]);
-  const pages = pagesHistory.current;
-  const setPages = pagesHistory.set;
+
+  // ── Unified editor history (single Cmd+Z stack) ──
+  const editorHistory = useHistory<EditorSnapshot>(emptySnapshot());
+  const editor = editorHistory.current;
+  const pages = editor.pages;
+  const annotationsMap = editor.annotationsMap;
+  const redactions = editor.redactions;
+  const cropMap = editor.cropMap;
+  const splitGroups = editor.splitGroups;
+  const editQueue = editor.editQueue;
+
+  // Setter wrappers — every Map setter clones-on-write so prior history snapshots stay intact.
+  const setPages = useCallback((val: PageItem[] | ((prev: PageItem[]) => PageItem[])) => {
+    editorHistory.set(prev => ({ ...prev, pages: typeof val === 'function' ? (val as (p: PageItem[]) => PageItem[])(prev.pages) : val }));
+  }, [editorHistory]);
+  const setAnnotationsMap = useCallback((val: Map<number, Annotation[]> | ((prev: Map<number, Annotation[]>) => Map<number, Annotation[]>)) => {
+    editorHistory.set(prev => ({ ...prev, annotationsMap: typeof val === 'function' ? (val as (p: Map<number, Annotation[]>) => Map<number, Annotation[]>)(prev.annotationsMap) : val }));
+  }, [editorHistory]);
+  const setRedactions = useCallback((val: Map<number, RedactRect[]> | ((prev: Map<number, RedactRect[]>) => Map<number, RedactRect[]>)) => {
+    editorHistory.set(prev => ({ ...prev, redactions: typeof val === 'function' ? (val as (p: Map<number, RedactRect[]>) => Map<number, RedactRect[]>)(prev.redactions) : val }));
+  }, [editorHistory]);
+  const setCropMap = useCallback((val: Map<number, CropValues> | ((prev: Map<number, CropValues>) => Map<number, CropValues>)) => {
+    editorHistory.set(prev => ({ ...prev, cropMap: typeof val === 'function' ? (val as (p: Map<number, CropValues>) => Map<number, CropValues>)(prev.cropMap) : val }));
+  }, [editorHistory]);
+  const setSplitGroups = useCallback((val: string[][] | ((prev: string[][]) => string[][])) => {
+    editorHistory.set(prev => ({ ...prev, splitGroups: typeof val === 'function' ? (val as (p: string[][]) => string[][])(prev.splitGroups) : val }));
+  }, [editorHistory]);
+  const setEditQueue = useCallback((val: QueueItem[] | ((prev: QueueItem[]) => QueueItem[])) => {
+    editorHistory.set(prev => ({ ...prev, editQueue: typeof val === 'function' ? (val as (p: QueueItem[]) => QueueItem[])(prev.editQueue) : val }));
+  }, [editorHistory]);
+  // Non-history version — for incidental sync (e.g. auto-add to queue from useEffect) we
+  // don't want to push history entries the user didn't make consciously.
+  const updateEditQueue = useCallback((val: QueueItem[] | ((prev: QueueItem[]) => QueueItem[])) => {
+    editorHistory.update(prev => ({ ...prev, editQueue: typeof val === 'function' ? (val as (p: QueueItem[]) => QueueItem[])(prev.editQueue) : val }));
+  }, [editorHistory]);
+
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
   const [activeTool, setActiveTool] = useState<ToolType>('organize');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // ── Edit Queue ──
-  const [editQueue, setEditQueue] = useState<QueueItem[]>([]);
-  const [splitMovedToast, setSplitMovedToast] = useState(false);
+  // ── Edit Queue UI state ──
+  const [activeSplitGroup, setActiveSplitGroup] = useState(0);
   const [processingState, setProcessingState] = useState<ProcessingState | null>(null);
-  const retryFromRef = useRef<number>(0);
+  const [preflightIssues, setPreflightIssues] = useState<PreflightIssue[] | null>(null);
+  const [compressWarning, setCompressWarning] = useState<{ pendingRun: () => void } | null>(null);
 
   // Queue drag state
   const [dragQueueIdx, setDragQueueIdx] = useState<number | null>(null);
