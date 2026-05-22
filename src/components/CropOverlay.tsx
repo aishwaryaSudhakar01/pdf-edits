@@ -100,12 +100,14 @@ const CropOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingCrop, onSave,
 
   const handleSave = () => {
     if (!cropBox || !displaySize) { onSave({ top: 0, right: 0, bottom: 0, left: 0 }); return; }
-    onSave({
+    const dispCrop: CropValues = {
       left: Math.round((cropBox.x / displaySize.width) * 100),
       top: Math.round((cropBox.y / displaySize.height) * 100),
       right: Math.round(((displaySize.width - cropBox.x - cropBox.w) / displaySize.width) * 100),
       bottom: Math.round(((displaySize.height - cropBox.y - cropBox.h) / displaySize.height) * 100),
-    });
+    };
+    // Persist in unrotated page coordinates so buildFinalPdf applies the crop on the right axes.
+    onSave(rotateCropToStorage(dispCrop, rotation));
   };
 
   const handleReset = () => {
