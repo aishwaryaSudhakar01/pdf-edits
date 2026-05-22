@@ -1537,6 +1537,47 @@ const PdfWorkspace = () => {
       </div>
 
       {/* Processing Overlay */}
+      {/* Preflight issues dialog */}
+      {preflightIssues && (
+        <div className="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+          <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
+            <h3 className="text-foreground font-semibold text-base mb-2">Fix these before processing</h3>
+            <p className="text-muted-foreground text-xs mb-4">{preflightIssues.length} issue{preflightIssues.length !== 1 ? 's' : ''} would prevent a correct output.</p>
+            <ul className="flex flex-col gap-2 mb-5">
+              {preflightIssues.map((iss, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm">
+                  <AlertTriangle size={14} className="text-destructive shrink-0 mt-1" />
+                  <div>
+                    <span className="text-foreground font-medium">{STEP_META[iss.operation as QueueStepType]?.label || iss.operation}:</span>{' '}
+                    <span className="text-muted-foreground">{iss.message}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-end">
+              <Button variant="positive" size="compact" onClick={() => setPreflightIssues(null)}>Got it</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Compression warning — vector ops will be rasterized */}
+      {compressWarning && (
+        <div className="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+          <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-foreground font-semibold text-base mb-2">Low-quality compression will rasterize edits</h3>
+            <p className="text-muted-foreground text-sm mb-5">
+              Compression runs before vector edits (annotations, watermark, page numbers, black-out) at quality &lt;60%.
+              Pages will be re-rendered as JPEG. Continue?
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="secondary" size="compact" onClick={() => setCompressWarning(null)}>Cancel</Button>
+              <Button variant="positive" size="compact" onClick={() => compressWarning.pendingRun()}>Continue</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {processingState && (
         <ProcessingOverlay
           state={processingState}
