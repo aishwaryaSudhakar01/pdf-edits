@@ -554,6 +554,41 @@ const PdfWorkspace = () => {
   const handleDownload = async (retryFrom = 0) => {
     // Build the processing steps from the edit queue (excluding organize which is implicit)
     const queueSteps = editQueue.filter(item => item.type !== 'organize');
+
+    // Preflight: validate everything before processing starts.
+    if (retryFrom === 0) {
+      const issues = preflightQueue(editQueue, {
+        pages, annotationsMap, redactions, cropMap, splitGroups,
+        pn: { enabled: pnEnabled, fontSize: pnFontSize, startNumber: parseInt(pnStart) || 1 },
+        wm: { enabled: wmEnabled, text: wmText, textByPage: wmTextByPage, fontSize: wmFontSize },
+        resize: {
+          enabled: resizeEnabled,
+          width: resizePreset >= 0 ? PAGE_SIZES[resizePreset].width : parseFloat(customW) || 612,
+          height: resizePreset >= 0 ? PAGE_SIZES[resizePreset].height : parseFloat(customH) || 792,
+        },
+        compress: { enabled: compressEnabled, quality },
+      });
+      if (issues.length > 0) {
+        setPreflightIssues(issues);
+        return;
+      }
+
+      // Compress-with-vector-ops safety warning (low quality only).
+      const hasCompress = editQueue.some(q => q.type === 'compress');
+      const hasVectorAfterCompress = (() => {
+        const ci = editQueue.findIndex(q => q.type === 'compress');
+        if (ci < 0) return false;
+        const vector: QueueStepType[] = ['annotations', 'watermark', 'pageNumbers', 'redact'];
+        return editQueue.slice(0, ci).some(q => vector.includes(q.type));
+      })();
+      if (hasCompress && hasVectorAfterCompress && quality < 60 && !compressWarning) {
+        setCompressWarning({
+          pendingRun: () => { setCompressWarning(null); handleDownload(retryFrom); },
+        });
+        return;
+      }
+    }
+
     if (queueSteps.length === 0 && hasPdfPages) {
       // No edits queued, just download the organized PDF
       setProcessing(true);
