@@ -242,10 +242,11 @@ export async function buildFinalPdf(
         throw new PdfOpError('stamp', `${describeOp('stamp')} failed on page ${i + 1}: missing image data`, { pageIndex: i });
       } else if (ann.type === 'signature' && !ann.signatureData) {
         throw new PdfOpError('signature', `${describeOp('signature')} failed on page ${i + 1}: missing signature data`, { pageIndex: i });
+      }
     }
   }
 
-  if (doc.getPageCount() === 0) throw new Error('No pages');
+  if (doc.getPageCount() === 0) throw new PdfOpError('output', 'Output PDF has no pages', { recoverable: false });
 
   // Apply metadata
   const meta = options.metadata;
