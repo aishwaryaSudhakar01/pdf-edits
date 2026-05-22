@@ -1699,13 +1699,7 @@ const PdfWorkspace = () => {
         </div>
       )}
 
-      {processingState && (
-        <ProcessingOverlay
-          state={processingState}
-          onRetry={handleRetryFromFailed}
-          onCancel={() => setProcessingState(null)}
-        />
-      )}
+      {/* Processing state is rendered inline on the chain cards (no modal) */}
 
       {/* Redact Overlay */}
       {redactPageIdx !== null && (() => {
