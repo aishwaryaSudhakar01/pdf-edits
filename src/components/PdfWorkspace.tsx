@@ -69,18 +69,18 @@ interface QueueItem {
   type: QueueStepType;
 }
 
-const STEP_META: Record<QueueStepType, { label: string; icon: React.ElementType }> = {
-  organize: { label: 'Organize', icon: Layers },
-  rotate: { label: 'Rotate', icon: RotateCw },
-  pageNumbers: { label: 'Page Numbers', icon: Hash },
-  watermark: { label: 'Watermark', icon: Droplets },
-  redact: { label: 'Redact', icon: EyeOff },
-  crop: { label: 'Crop', icon: Crop },
-  resize: { label: 'Resize', icon: Maximize },
-  compress: { label: 'Compress', icon: Zap },
-  metadata: { label: 'Metadata', icon: FileEdit },
-  annotations: { label: 'Annotations', icon: Type },
-  split: { label: 'Split', icon: Scissors },
+const STEP_META: Record<QueueStepType, { label: string; icon: React.ElementType; tintVar: string }> = {
+  organize: { label: 'Organize', icon: Layers, tintVar: 'var(--tint-cream)' },
+  rotate: { label: 'Rotate', icon: RotateCw, tintVar: 'var(--tint-warm-gray)' },
+  pageNumbers: { label: 'Page numbers', icon: Hash, tintVar: 'var(--tint-butter)' },
+  watermark: { label: 'Watermark', icon: Droplets, tintVar: 'var(--tint-mint)' },
+  redact: { label: 'Black-out', icon: EyeOff, tintVar: 'var(--tint-warm-gray)' },
+  crop: { label: 'Crop', icon: Crop, tintVar: 'var(--tint-warm-gray)' },
+  resize: { label: 'Resize', icon: Maximize, tintVar: 'var(--tint-cream)' },
+  compress: { label: 'Compress', icon: Zap, tintVar: 'var(--tint-cream)' },
+  metadata: { label: 'Metadata', icon: FileEdit, tintVar: 'var(--tint-blush)' },
+  annotations: { label: 'Annotations', icon: Type, tintVar: 'var(--tint-blush)' },
+  split: { label: 'Split', icon: Scissors, tintVar: 'var(--tint-cream)' },
 };
 
 const STEP_TO_TOOL: Record<QueueStepType, ToolType> = {
