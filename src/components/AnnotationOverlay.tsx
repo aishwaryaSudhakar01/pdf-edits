@@ -254,7 +254,8 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
     const w = img.width * scale;
     const h = img.height * scale;
     const pdf = toPdf(drawStart.x || displaySize.width / 2, drawStart.y || displaySize.height / 2);
-    setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'stamp', x: pdf.x - w / 2, y: pdf.y + h / 2, width: w, height: h, imageData: data, imageType: type }]);
+    const imageKey = putImage(data, type);
+    setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'stamp', x: pdf.x - w / 2, y: pdf.y + h / 2, width: w, height: h, imageKey, imageType: type }]);
   };
 
   const getSigPos = (e: React.MouseEvent) => {
