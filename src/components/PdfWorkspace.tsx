@@ -1637,15 +1637,16 @@ const PdfWorkspace = () => {
                 </div>
               )}
 
-              {/* ── Edit Queue Trail ─────────────────── */}
+              {/* ── Edit Chain Panel ─────────────────── */}
               {hasPdfPages && activeTool !== 'imageToPdf' && activeTool !== 'pdfToImage' && (
                 <>
                   {editQueue.length > 0 ? renderQueueTrail() : (
-                    <div className="mt-4 md:mt-5 p-3 md:p-4 md:px-5 border border-border rounded-md">
-                      <p className="text-muted-foreground text-sm text-center">No edits queued. Configure tools above — they'll appear here automatically.</p>
-                      <div className="flex justify-center mt-4">
-                        <Button onClick={() => handleDownload(0)} disabled={processing || pages.length === 0} isLoading={processing} size="compact" variant="positive" className="px-8">
-                          <FileDown size={16} className="mr-1.5" /> Download
+                    <div className="mt-4 md:mt-5 p-5 border border-border rounded-xl bg-card">
+                      <div className="text-center">
+                        <p className="text-foreground text-sm font-semibold mb-1">Your edit chain is empty.</p>
+                        <p className="text-muted-foreground text-xs mb-4">Pick a tool above. Each change you make lands here as a card you can reorder, tweak, or remove.</p>
+                        <Button onClick={() => handleDownload(0)} disabled={processing || pages.length === 0} isLoading={processing} size="compact" variant="positive" className="px-6">
+                          <FileDown size={14} className="mr-1.5" /> Download as is
                         </Button>
                       </div>
                     </div>
