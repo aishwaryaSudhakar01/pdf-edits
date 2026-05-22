@@ -131,13 +131,21 @@ const PageThumbnail = ({ pdfBuffer, pageIndex, width = 150, rotation = 0, overla
         }
 
         if (!cancelled) setRendered(true);
-      } catch (err) {
-        console.error('Thumbnail render failed:', err);
+      } catch (err: unknown) {
+        // Ignore cancellation errors from pdf.js
+        const name = (err as { name?: string })?.name;
+        if (name === 'RenderingCancelledException') return;
+        if (!cancelled) console.error('Thumbnail render failed:', err);
+      } finally {
+        if (pdfDoc) { try { await pdfDoc.destroy(); } catch { /* noop */ } }
       }
     };
     setRendered(false);
     render();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (renderTask) { try { renderTask.cancel(); } catch { /* noop */ } }
+    };
   }, [pdfBuffer, pageIndex, width, rotation, overlays]);
 
   return (
