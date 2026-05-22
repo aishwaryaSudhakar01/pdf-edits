@@ -157,10 +157,11 @@ const PageThumbnail = ({ pdfBuffer, pageIndex, width = 150, rotation = 0, overla
       }
     };
     setRendered(false);
-    render();
+    const p = run();
+    inFlightRef.current = p;
     return () => {
       cancelled = true;
-      if (renderTask) { try { renderTask.cancel(); } catch { /* noop */ } }
+      if (renderTaskRef.current) { try { renderTaskRef.current.cancel(); } catch { /* noop */ } }
     };
   }, [pdfBuffer, pageIndex, width, rotation, overlays]);
 
