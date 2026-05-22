@@ -194,7 +194,17 @@ const PdfWorkspace = () => {
   const [sources, setSources] = useState<Map<string, SourceFile>>(new Map());
 
   // ── Unified editor history (single Cmd+Z stack) ──
-  const editorHistory = useHistory<EditorSnapshot>(emptySnapshot());
+  // Per-field shallow equality: every snapshot field is either an immutable
+  // primitive/array or a clone-on-write Map/Uint8Array, so reference equality
+  // is correct AND cheap. We never recurse into Maps or Uint8Arrays.
+  const snapshotEquals = useCallback((a: EditorSnapshot, b: EditorSnapshot) =>
+    a.pages === b.pages
+    && a.annotationsMap === b.annotationsMap
+    && a.redactions === b.redactions
+    && a.cropMap === b.cropMap
+    && a.splitGroups === b.splitGroups
+    && a.editQueue === b.editQueue, []);
+  const editorHistory = useHistory<EditorSnapshot>(emptySnapshot(), 30, snapshotEquals);
   const editor = editorHistory.current;
   const pages = editor.pages;
   const annotationsMap = editor.annotationsMap;
