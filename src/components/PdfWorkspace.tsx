@@ -187,8 +187,6 @@ const emptySnapshot = (): EditorSnapshot => ({
 });
 
 const PdfWorkspace = () => {
-  const { mode: themeMode, toggle: toggleTheme } = useThemeMode();
-
   // Core state — the ORIGINAL file is never modified
   const [sources, setSources] = useState<Map<string, SourceFile>>(new Map());
 
