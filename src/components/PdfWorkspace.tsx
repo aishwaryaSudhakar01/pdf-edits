@@ -11,10 +11,9 @@ import {
   FileDown, FileText, Trash2, Zap, Loader2, Plus, RotateCcw, X,
   Scissors, RotateCw, Hash, Droplets, EyeOff, Crop, Image, Camera,
   Layers, ArrowDown, RotateCcw as RotateCcwIcon, ChevronRight, FileType,
-  Moon, Sun, FileEdit, Type, Highlighter, Stamp, PenTool, Undo2, Redo2, Maximize,
+  FileEdit, Type, Highlighter, Stamp, PenTool, Undo2, Redo2, Maximize,
   Menu as MenuIcon, Play, Clock, Check, GripVertical, AlertTriangle,
 } from 'lucide-react';
-import { useThemeMode } from '../lib/theme-context';
 import AnnotationOverlay, { type Annotation, type AnnotationType } from './AnnotationOverlay';
 import PageThumbnail, { type ThumbnailOverlays } from './PageThumbnail';
 import RedactOverlay from './RedactOverlay';
