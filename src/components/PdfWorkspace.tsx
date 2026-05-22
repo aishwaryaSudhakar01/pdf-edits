@@ -857,85 +857,206 @@ const PdfWorkspace = () => {
     });
   };
 
-  /* ── Queue Trail ─────────────────────────────── */
+  /* ── Step parameter summary (one human line per card) ── */
+  const describeStep = useCallback((type: QueueStepType): string => {
+    switch (type) {
+      case 'organize': return `${pages.length} page${pages.length !== 1 ? 's' : ''} in order`;
+      case 'rotate': {
+        const rotated = pages.filter(p => p.rotation !== 0).length;
+        return rotated > 0 ? `${rotated} page${rotated !== 1 ? 's' : ''} rotated` : 'rotation pending';
+      }
+      case 'pageNumbers':
+        return `${pnPosition.replace('-', ' ')} · ${pnFontSize}pt · start ${parseInt(pnStart) || 1}`;
+      case 'watermark': {
+        const txt = wmText || (wmTextByPage.size > 0 ? `${wmTextByPage.size} per-page` : '');
+        return `${txt || 'no text'} · ${wmOpacity}% · ${wmAngle}°`;
+      }
+      case 'redact': {
+        const total = Array.from(redactions.values()).reduce((s, r) => s + r.length, 0);
+        return `${total} area${total !== 1 ? 's' : ''} on ${redactions.size} page${redactions.size !== 1 ? 's' : ''}`;
+      }
+      case 'crop': return `${cropMap.size} page${cropMap.size !== 1 ? 's' : ''} cropped`;
+      case 'resize': {
+        const w = resizePreset >= 0 ? PAGE_SIZES[resizePreset].width : parseFloat(customW) || 612;
+        const h = resizePreset >= 0 ? PAGE_SIZES[resizePreset].height : parseFloat(customH) || 792;
+        const label = resizePreset >= 0 ? PAGE_SIZES[resizePreset].label : 'custom';
+        return `${label} · ${Math.round(w)}×${Math.round(h)} pt`;
+      }
+      case 'compress': return `quality ${quality}`;
+      case 'metadata': {
+        const parts = [metaTitle, metaAuthor].filter(Boolean);
+        return parts.length > 0 ? parts.join(' · ') : 'metadata set';
+      }
+      case 'annotations': {
+        const total = Array.from(annotationsMap.values()).reduce((s, a) => s + a.length, 0);
+        return `${total} mark${total !== 1 ? 's' : ''} on ${annotationsMap.size} page${annotationsMap.size !== 1 ? 's' : ''}`;
+      }
+      case 'split': {
+        const groups = splitGroups.filter(g => g.length > 0);
+        if (groups.length === 0) return 'no groups';
+        return groups.map(g => formatPageRangeList(g)).join(' · ');
+      }
+    }
+  }, [pages, pnPosition, pnFontSize, pnStart, wmText, wmTextByPage, wmOpacity, wmAngle, redactions, cropMap, resizePreset, customW, customH, quality, metaTitle, metaAuthor, annotationsMap, splitGroups, formatPageRangeList]);
+
+  /* ── Vertical chain panel (cards) ─────────────────────── */
   const renderQueueTrail = () => {
     if (editQueue.length === 0) return null;
+    const ambiguities = detectQueueAmbiguities(editQueue);
+    const isProcessing = !!processingState;
+    const hasError = isProcessing && processingState.failedIndex !== null;
+    const allDone = isProcessing && processingState.steps.every(s => s.status === 'done');
+
+    // Map step type → its display step in processingState (sequential indices match queueSteps order)
+    const statusFor = (type: QueueStepType): 'pending' | 'active' | 'done' | 'error' | null => {
+      if (!processingState) return null;
+      const found = processingState.steps.find(s => s.type === type);
+      return found?.status ?? null;
+    };
+    const errorFor = (type: QueueStepType): string | undefined => {
+      if (!processingState) return;
+      return processingState.steps.find(s => s.type === type)?.error;
+    };
+
     return (
-      <div className="mt-4 md:mt-5 p-3 md:p-4 md:px-5 border border-border rounded-md overflow-hidden">
-        {/* Ambiguity inline notes */}
-        {(() => {
-          const ambiguities = detectQueueAmbiguities(editQueue);
-          if (ambiguities.length === 0) return null;
-          return (
-            <div className="flex flex-col gap-1 mb-3">
-              {ambiguities.map((amb, i) => (
-                <div key={i} className="flex items-start gap-2 p-2 rounded bg-accent border border-border">
-                  <AlertTriangle size={14} className="text-primary shrink-0 mt-px" />
-                  <span className="text-xs text-foreground">{amb.message} <span className="text-muted-foreground">({amb.swapHint})</span></span>
-                </div>
-              ))}
-            </div>
-          );
-        })()}
-
-
+      <div className="mt-4 md:mt-5 p-4 md:p-5 border border-border rounded-xl bg-card">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wider">Edit Queue</span>
-          <span className="text-muted-foreground text-[10px]">({editQueue.length} step{editQueue.length !== 1 ? 's' : ''})</span>
+          <span className="text-foreground text-[11px] font-semibold uppercase tracking-wider">Edit chain</span>
+          <span className="text-muted-foreground text-[10px]">{editQueue.length} step{editQueue.length !== 1 ? 's' : ''}</span>
+          {allDone && (
+            <span className="ml-auto text-[11px] font-semibold text-primary success-glow">Ready</span>
+          )}
         </div>
 
-        <div className="overflow-x-auto overflow-y-hidden max-w-full pb-1 scrollbar-thin">
-          <div className="inline-flex items-center flex-nowrap min-w-max gap-1">
-            {editQueue.map((item, idx) => {
-              const meta = STEP_META[item.type];
-              const Icon = meta.icon;
-              const isOrganize = item.type === 'organize';
-              const isDragOver = dragOverQueueIdx === idx && dragQueueIdx !== idx;
+        <ol className="flex flex-col gap-2">
+          {editQueue.map((item, idx) => {
+            const meta = STEP_META[item.type];
+            const Icon = meta.icon;
+            const isOrganize = item.type === 'organize';
+            const isDragOver = dragOverQueueIdx === idx && dragQueueIdx !== idx;
+            const status = statusFor(item.type);
+            const err = errorFor(item.type);
+            const ambig = ambiguities.find(a => a.message.toLowerCase().includes(meta.label.toLowerCase()));
+            const params = describeStep(item.type);
 
-              return (
-                <div key={item.id} className="flex items-center shrink-0">
-                  {idx > 0 && <div className="w-2 md:w-3 h-px bg-border shrink-0 mx-0.5" />}
-                  <div
-                    draggable={!isOrganize}
-                    onDragStart={() => !isOrganize && setDragQueueIdx(idx)}
-                    onDragOver={(e) => { e.preventDefault(); setDragOverQueueIdx(idx); }}
-                    onDragLeave={() => { if (dragOverQueueIdx === idx) setDragOverQueueIdx(null); }}
-                    onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (dragQueueIdx !== null) reorderQueue(dragQueueIdx, idx); setDragQueueIdx(null); setDragOverQueueIdx(null); }}
-                    onDragEnd={() => { setDragQueueIdx(null); setDragOverQueueIdx(null); }}
-                    onClick={() => setActiveTool(STEP_TO_TOOL[item.type])}
-                    className={cn(
-                      "flex items-center gap-1 md:gap-1.5 py-1 px-2 md:py-1.5 md:px-2.5 rounded cursor-pointer whitespace-nowrap transition-all text-xs border",
-                      "bg-foreground text-background border-transparent",
-                      isDragOver && "ring-2 ring-primary ring-offset-1 ring-offset-background",
-                      dragQueueIdx === idx && "opacity-50",
-                    )}
+            return (
+              <li
+                key={item.id}
+                draggable={!isOrganize && !isProcessing}
+                onDragStart={() => !isOrganize && setDragQueueIdx(idx)}
+                onDragOver={(e) => { e.preventDefault(); setDragOverQueueIdx(idx); }}
+                onDragLeave={() => { if (dragOverQueueIdx === idx) setDragOverQueueIdx(null); }}
+                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (dragQueueIdx !== null) reorderQueue(dragQueueIdx, idx); setDragQueueIdx(null); setDragOverQueueIdx(null); }}
+                onDragEnd={() => { setDragQueueIdx(null); setDragOverQueueIdx(null); }}
+                onClick={() => !isProcessing && setActiveTool(STEP_TO_TOOL[item.type])}
+                className={cn(
+                  "card-in group flex flex-col gap-1.5 p-2.5 pl-2 pr-2.5 rounded-lg border bg-card transition-all duration-200",
+                  !isProcessing && "cursor-pointer hover:border-foreground/20",
+                  isDragOver && "ring-2 ring-primary",
+                  dragQueueIdx === idx && "opacity-50",
+                  status === 'active' && "border-primary/60 soft-pulse",
+                  status === 'done' && "opacity-80",
+                  status === 'error' && "border-destructive/60",
+                )}
+              >
+                <div className="flex items-center gap-2.5">
+                  {!isOrganize && !isProcessing ? (
+                    <span className="cursor-grab text-muted-foreground/50 hover:text-foreground/70 shrink-0" aria-hidden>
+                      <GripVertical size={14} />
+                    </span>
+                  ) : (
+                    <span className="w-[14px] shrink-0" />
+                  )}
+                  <span
+                    className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 border border-border"
+                    style={{ backgroundColor: meta.tintVar }}
                   >
-                    {!isOrganize && (
-                      <GripVertical size={10} className="opacity-50 cursor-grab shrink-0" />
-                    )}
-                    <span className="text-[10px] leading-none">✓</span>
-                    <Icon size={12} />
-                    <span className="text-[10px] md:text-xs font-medium">{meta.label}</span>
-                    {!isOrganize && (
+                    <Icon size={14} className="text-foreground" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] font-semibold text-foreground leading-tight">{meta.label}</span>
+                      <span className="text-[10px] text-muted-foreground tabular-nums">#{idx + 1}</span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground truncate leading-tight">{params}</div>
+                  </div>
+
+                  {/* Status badge */}
+                  {status === 'active' && (
+                    <Loader2 size={14} className="text-primary spin shrink-0" aria-label="processing" />
+                  )}
+                  {status === 'done' && (
+                    <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+                      <Check size={12} />
+                    </span>
+                  )}
+                  {status === 'error' && (
+                    <span className="w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shrink-0">
+                      <X size={12} />
+                    </span>
+                  )}
+                  {status === 'pending' && (
+                    <Clock size={14} className="text-muted-foreground/60 shrink-0" aria-label="queued" />
+                  )}
+
+                  {!isOrganize && !isProcessing && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeFromQueue(item.type); }}
+                      className="opacity-40 hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-1 rounded shrink-0"
+                      aria-label={`Remove ${meta.label} step`}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Inline error detail */}
+                {status === 'error' && err && (
+                  <div className="ml-[42px] text-[11px] text-destructive">{err}</div>
+                )}
+
+                {/* Inline ambiguity note + Swap */}
+                {ambig && !isProcessing && (
+                  <div className="ml-[42px] flex items-start gap-1.5 text-[11px]">
+                    <AlertTriangle size={12} className="text-foreground/70 shrink-0 mt-px" />
+                    <span className="text-muted-foreground flex-1">
+                      {ambig.message}{' '}
+                      <ToolbarTooltip content={ambig.swapHint}>
+                        <span className="underline decoration-dotted underline-offset-2 cursor-help">What's the difference?</span>
+                      </ToolbarTooltip>
+                    </span>
+                    {idx > 0 && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); removeFromQueue(item.type); }}
-                        className="bg-transparent border-none cursor-pointer flex items-center justify-center p-0 ml-0.5 opacity-70 hover:opacity-100"
-                        style={{ color: 'inherit' }}
+                        onClick={(e) => { e.stopPropagation(); reorderQueue(idx, idx - 1); }}
+                        className="text-primary font-semibold hover:underline shrink-0"
                       >
-                        <X size={12} />
+                        Swap
                       </button>
                     )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
 
-        <div className="flex justify-center mt-5">
-          <Button onClick={() => handleDownload(0)} disabled={processing || pages.length === 0} isLoading={processing} size="compact" variant="positive" className="px-8">
-            <FileDown size={16} className="mr-1.5" /> Download
-          </Button>
+        <div className="flex items-center justify-between gap-2 mt-4">
+          <span className="text-[11px] text-muted-foreground">
+            {isProcessing ? (hasError ? 'A step needs your attention' : allDone ? 'Your file is ready' : 'Working through the chain') : 'Drag to reorder. Click a step to tweak it.'}
+          </span>
+          <div className="flex gap-2">
+            {hasError && (
+              <>
+                <Button variant="secondary" size="compact" onClick={() => setProcessingState(null)}>Cancel</Button>
+                <Button variant="positive" size="compact" onClick={handleRetryFromFailed}>Retry</Button>
+              </>
+            )}
+            {!isProcessing && (
+              <Button onClick={() => handleDownload(0)} disabled={processing || pages.length === 0} isLoading={processing} size="compact" variant="positive" className="px-6">
+                <FileDown size={14} className="mr-1.5" /> Download
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     );
