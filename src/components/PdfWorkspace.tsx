@@ -827,13 +827,22 @@ const PdfWorkspace = () => {
     if (editQueue.length === 0) return null;
     return (
       <div className="mt-4 md:mt-5 p-3 md:p-4 md:px-5 border border-border rounded-md overflow-hidden">
-        {/* Split-moved toast */}
-        {splitMovedToast && (
-          <div className="flex items-center gap-2 mb-3 p-2 rounded bg-accent border border-border">
-            <AlertTriangle size={14} className="text-primary shrink-0" />
-            <span className="text-xs text-foreground">Split has been moved to the end of your workflow</span>
-          </div>
-        )}
+        {/* Ambiguity inline notes */}
+        {(() => {
+          const ambiguities = detectQueueAmbiguities(editQueue);
+          if (ambiguities.length === 0) return null;
+          return (
+            <div className="flex flex-col gap-1 mb-3">
+              {ambiguities.map((amb, i) => (
+                <div key={i} className="flex items-start gap-2 p-2 rounded bg-accent border border-border">
+                  <AlertTriangle size={14} className="text-primary shrink-0 mt-px" />
+                  <span className="text-xs text-foreground">{amb.message} <span className="text-muted-foreground">({amb.swapHint})</span></span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
 
         <div className="flex items-center gap-2 mb-3">
           <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wider">Edit Queue</span>
