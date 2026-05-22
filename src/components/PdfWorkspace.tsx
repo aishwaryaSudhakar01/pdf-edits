@@ -778,12 +778,12 @@ const PdfWorkspace = () => {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); pagesHistory.undo(); }
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); pagesHistory.redo(); }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); editorHistory.undo(); }
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); editorHistory.redo(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [pagesHistory]);
+  }, [editorHistory]);
 
   const openFilePicker = () => { if (fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } };
   const openImagePicker = () => { if (imageInputRef.current) { imageInputRef.current.value = ''; imageInputRef.current.click(); } };
