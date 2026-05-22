@@ -310,7 +310,7 @@ const PdfWorkspace = () => {
   const [redactPageIdx, setRedactPageIdx] = useState<number | null>(null);
 
   // Crop
-  const [cropMap, setCropMap] = useState<Map<number, CropValues>>(new Map());
+  // Crop — cropMap lives in editorHistory
   const [cropPageIdx, setCropPageIdx] = useState<number | null>(null);
   const cropEnabled = cropMap.size > 0;
 
