@@ -920,12 +920,12 @@ const PdfWorkspace = () => {
     // Map step type → its display step in processingState (sequential indices match queueSteps order)
     const statusFor = (type: QueueStepType): 'pending' | 'active' | 'done' | 'error' | null => {
       if (!processingState) return null;
-      const found = processingState.steps.find(s => s.type === type);
+      const found = processingState.steps.find(s => s && s.type === type);
       return found?.status ?? null;
     };
     const errorFor = (type: QueueStepType): string | undefined => {
       if (!processingState) return;
-      return processingState.steps.find(s => s.type === type)?.error;
+      return processingState.steps.find(s => s && s.type === type)?.error;
     };
 
     return (
