@@ -198,13 +198,6 @@
     background-size: cover;
   }
 
-  .dark body {
-    background-image:
-      radial-gradient(ellipse 70% 60% at 0% 0%,    oklch(0.36 0.06 350 / 0.45), transparent 55%),
-      radial-gradient(ellipse 70% 60% at 100% 100%, oklch(0.36 0.05 155 / 0.4),  transparent 55%),
-      radial-gradient(ellipse 60% 50% at 100% 0%,  oklch(0.34 0.04 85 / 0.35),   transparent 55%),
-      radial-gradient(ellipse 50% 45% at 0% 100%,  oklch(0.36 0.03 295 / 0.28),  transparent 60%);
-  }
 
   h1, h2, h3 {
     font-family: var(--font-display);
