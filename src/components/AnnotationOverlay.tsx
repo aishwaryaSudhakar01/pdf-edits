@@ -461,10 +461,14 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
               </div>
             );
           }
-          if ((ann.type === 'stamp' && ann.imageData) || (ann.type === 'signature' && ann.signatureData)) {
-            const data = ann.type === 'stamp' ? ann.imageData! : ann.signatureData!;
-            const mime = ann.type === 'stamp' ? (ann.imageType === 'png' ? 'image/png' : 'image/jpeg') : 'image/png';
-            const blob = new Blob([data.buffer as ArrayBuffer], { type: mime });
+          // Resolve image bytes: imageKey first (current), legacy inline fields second.
+          const imgBytes = ann.imageKey ? getImage(ann.imageKey)?.bytes
+            : ann.type === 'stamp' ? ann.imageData : ann.signatureData;
+          const imgType = ann.imageKey ? (getImage(ann.imageKey)?.type ?? 'png')
+            : (ann.type === 'stamp' ? (ann.imageType ?? 'png') : 'png');
+          if ((ann.type === 'stamp' || ann.type === 'signature') && imgBytes) {
+            const mime = imgType === 'png' ? 'image/png' : 'image/jpeg';
+            const blob = new Blob([imgBytes.buffer as ArrayBuffer], { type: mime });
             const url = URL.createObjectURL(blob);
             return (
               <div key={ann.id} style={{
