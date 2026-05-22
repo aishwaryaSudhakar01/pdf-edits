@@ -988,10 +988,10 @@ const PdfWorkspace = () => {
                 </div>
                 <div className="flex gap-2">
                   <ToolbarTooltip content="Undo (Ctrl+Z)">
-                    <Button variant="tertiary" size="mini" onClick={pagesHistory.undo} disabled={!pagesHistory.canUndo} aria-label="Undo"><Undo2 size={14} /></Button>
+                    <Button variant="tertiary" size="mini" onClick={editorHistory.undo} disabled={!editorHistory.canUndo} aria-label="Undo"><Undo2 size={14} /></Button>
                   </ToolbarTooltip>
                   <ToolbarTooltip content="Redo (Ctrl+Y)">
-                    <Button variant="tertiary" size="mini" onClick={pagesHistory.redo} disabled={!pagesHistory.canRedo} aria-label="Redo"><Redo2 size={14} /></Button>
+                    <Button variant="tertiary" size="mini" onClick={editorHistory.redo} disabled={!editorHistory.canRedo} aria-label="Redo"><Redo2 size={14} /></Button>
                   </ToolbarTooltip>
                   {selectedPageIds.size > 0 && (
                     <ToolbarTooltip content="Delete selected pages">
