@@ -70,7 +70,7 @@ interface QueueItem {
 }
 
 const STEP_META: Record<QueueStepType, { label: string; icon: React.ElementType; tintVar: string }> = {
-  organize: { label: 'Organize', icon: Layers, tintVar: 'var(--tint-cream)' },
+  organize: { label: 'Organize', icon: Layers, tintVar: 'var(--tint-warm-gray)' },
   rotate: { label: 'Rotate', icon: RotateCw, tintVar: 'var(--tint-warm-gray)' },
   pageNumbers: { label: 'Page numbers', icon: Hash, tintVar: 'var(--tint-butter)' },
   watermark: { label: 'Watermark', icon: Droplets, tintVar: 'var(--tint-mint)' },
@@ -78,7 +78,7 @@ const STEP_META: Record<QueueStepType, { label: string; icon: React.ElementType;
   crop: { label: 'Crop', icon: Crop, tintVar: 'var(--tint-warm-gray)' },
   resize: { label: 'Resize', icon: Maximize, tintVar: 'var(--tint-cream)' },
   compress: { label: 'Compress', icon: Zap, tintVar: 'var(--tint-cream)' },
-  metadata: { label: 'Metadata', icon: FileEdit, tintVar: 'var(--tint-blush)' },
+  metadata: { label: 'Metadata', icon: FileEdit, tintVar: 'var(--tint-lavender)' },
   annotations: { label: 'Annotations', icon: Type, tintVar: 'var(--tint-blush)' },
   split: { label: 'Split', icon: Scissors, tintVar: 'var(--tint-cream)' },
 };
