@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { X, Type, Highlighter, ImageIcon, PenTool, Plus, Minus, Trash2, Undo2 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
+import { putImage, getImage } from '@/lib/image-store';
 
 if (typeof window !== 'undefined') { pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`; }
 
@@ -15,9 +16,14 @@ export interface Annotation {
   x: number; y: number; width: number; height: number;
   text?: string; fontSize?: number; color?: string;
   highlightColor?: string; highlightOpacity?: number;
-  imageData?: Uint8Array; imageType?: 'png' | 'jpg';
+  /** Content-addressed key into image-store (stamps + signatures). */
+  imageKey?: string; imageType?: 'png' | 'jpg';
+  /** @deprecated legacy inline bytes — kept for backwards compat with old snapshots. */
+  imageData?: Uint8Array;
+  /** @deprecated legacy inline bytes — kept for backwards compat with old snapshots. */
   signatureData?: Uint8Array;
 }
+
 
 interface AnnotationOverlayProps {
   pdfBuffer: ArrayBuffer;
