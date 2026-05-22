@@ -152,12 +152,11 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!ready) return;
-    if (mode === 'signature') return;
     const pos = getPos(e);
     const hitAnn = hitTestAnnotation(pos);
 
     if (hitAnn) {
-      // All annotation types: use delayed drag (150ms hold)
+      // All annotation types: use delayed drag (150ms hold) so we can drag placed signatures/stamps too
       const s = toScreen(hitAnn.x, hitAnn.y);
       const sh = hitAnn.height * scaleY;
       const offset = { x: pos.x - s.x, y: pos.y - (s.y - sh) };
@@ -170,6 +169,9 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
       }, 150);
       return;
     }
+
+    // In signature mode, the page is read-only outside of placed signatures.
+    if (mode === 'signature') return;
 
     // Clicked empty space — deselect if something selected, or place/draw
     if (selectedId) {

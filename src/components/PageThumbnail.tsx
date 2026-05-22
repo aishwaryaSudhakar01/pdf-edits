@@ -84,9 +84,15 @@ const PageThumbnail = ({ pdfBuffer, pageIndex, width = 150, rotation = 0, overla
           }
         }
 
-        // Draw crop overlay (dim outside areas)
+        // Draw crop overlay (dim outside areas) — crop is stored in unrotated coords; rotate to display.
         if (overlays?.crop) {
-          const { top, right, bottom, left } = overlays.crop;
+          const n = ((rotation % 360) + 360) % 360;
+          const c = overlays.crop;
+          const { top, right, bottom, left } =
+            n === 90  ? { top: c.right, right: c.bottom, bottom: c.left, left: c.top } :
+            n === 180 ? { top: c.bottom, right: c.left, bottom: c.top, left: c.right } :
+            n === 270 ? { top: c.left, right: c.top, bottom: c.right, left: c.bottom } :
+                        c;
           if (top > 0 || right > 0 || bottom > 0 || left > 0) {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
             const cropX = (left / 100) * cw;

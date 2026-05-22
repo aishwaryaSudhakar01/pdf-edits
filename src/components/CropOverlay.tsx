@@ -24,6 +24,23 @@ const CropOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingCrop, onSave,
   const [cropBox, setCropBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [dragging, setDragging] = useState<{ handle: Handle | 'move'; startX: number; startY: number; startBox: { x: number; y: number; w: number; h: number } } | null>(null);
 
+  // Map crop percentages between unrotated (storage) and displayed (rotated) orientations.
+  // pdf.js rotation is clockwise. For display we want the values applied to the rotated viewport.
+  const rotateCropToDisplay = (c: CropValues, r: number): CropValues => {
+    const n = ((r % 360) + 360) % 360;
+    if (n === 90)  return { top: c.right, right: c.bottom, bottom: c.left, left: c.top };
+    if (n === 180) return { top: c.bottom, right: c.left, bottom: c.top, left: c.right };
+    if (n === 270) return { top: c.left, right: c.top, bottom: c.right, left: c.bottom };
+    return c;
+  };
+  const rotateCropToStorage = (c: CropValues, r: number): CropValues => {
+    const n = ((r % 360) + 360) % 360;
+    if (n === 90)  return { left: c.top, top: c.right, bottom: c.left, right: c.bottom };
+    if (n === 180) return { top: c.bottom, right: c.left, bottom: c.top, left: c.right };
+    if (n === 270) return { top: c.left, right: c.top, bottom: c.right, left: c.bottom };
+    return c;
+  };
+
   useEffect(() => {
     const render = async () => {
       try {
@@ -41,10 +58,11 @@ const CropOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingCrop, onSave,
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         await page.render({ canvasContext: ctx, viewport: scaled }).promise;
-        const x = (existingCrop.left / 100) * scaled.width;
-        const y = (existingCrop.top / 100) * scaled.height;
-        const w = scaled.width - x - (existingCrop.right / 100) * scaled.width;
-        const h = scaled.height - y - (existingCrop.bottom / 100) * scaled.height;
+        const dispCrop = rotateCropToDisplay(existingCrop, rotation);
+        const x = (dispCrop.left / 100) * scaled.width;
+        const y = (dispCrop.top / 100) * scaled.height;
+        const w = scaled.width - x - (dispCrop.right / 100) * scaled.width;
+        const h = scaled.height - y - (dispCrop.bottom / 100) * scaled.height;
         setCropBox({ x, y, w, h });
       } catch (err) { console.error('Crop render failed:', err); }
     };
@@ -82,12 +100,14 @@ const CropOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingCrop, onSave,
 
   const handleSave = () => {
     if (!cropBox || !displaySize) { onSave({ top: 0, right: 0, bottom: 0, left: 0 }); return; }
-    onSave({
+    const dispCrop: CropValues = {
       left: Math.round((cropBox.x / displaySize.width) * 100),
       top: Math.round((cropBox.y / displaySize.height) * 100),
       right: Math.round(((displaySize.width - cropBox.x - cropBox.w) / displaySize.width) * 100),
       bottom: Math.round(((displaySize.height - cropBox.y - cropBox.h) / displaySize.height) * 100),
-    });
+    };
+    // Persist in unrotated page coordinates so buildFinalPdf applies the crop on the right axes.
+    onSave(rotateCropToStorage(dispCrop, rotation));
   };
 
   const handleReset = () => {

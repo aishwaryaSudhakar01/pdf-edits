@@ -1219,6 +1219,16 @@ const PdfWorkspace = () => {
                     const isSelected = selectedPageIds.has(page.id);
                     const isDragOver = dragOverIdx === idx && dragPageIdx !== idx;
                     const hasRedaction = (redactions.get(idx) || []).length > 0;
+                    const cropVal = cropMap.get(idx);
+                    const hasCrop = !!cropVal && (cropVal.top > 0 || cropVal.right > 0 || cropVal.bottom > 0 || cropVal.left > 0);
+                    const annCount = annotationsMap.get(idx)?.length ?? 0;
+                    const hasAnnotations = annCount > 0;
+                    const hasRotation = page.rotation !== 0;
+                    const editBadges: { label: string; bg: string }[] = [];
+                    if (hasRedaction) editBadges.push({ label: 'REDACTED', bg: 'bg-red-600/90' });
+                    if (hasCrop) editBadges.push({ label: 'CROPPED', bg: 'bg-amber-600/90' });
+                    if (hasAnnotations) editBadges.push({ label: 'EDITED', bg: 'bg-emerald-600/90' });
+                    if (hasRotation) editBadges.push({ label: `${page.rotation}°`, bg: 'bg-sky-600/90' });
                     const splitGroupIndices = getSplitGroupIndices(page.id);
                     const defaultCardShadow = isSelected ? '0 0 0 2px hsl(var(--foreground) / 0.08)' : dragPageIdx === idx ? '0 8px 24px hsl(var(--foreground) / 0.15)' : '0 1px 4px hsl(var(--foreground) / 0.06)';
                     const cardBorder = (() => {
@@ -1266,9 +1276,13 @@ const PdfWorkspace = () => {
                             <span className="text-background text-xs font-bold">✓</span>
                           </div>
                         )}
-                        {hasRedaction && (
-                          <div className={cn("absolute top-1.5 z-[2] bg-red-600/90 rounded px-1.5 py-px", isSelected ? "left-[34px]" : "left-1.5")}>
-                            <span className="text-white text-[10px] font-semibold">REDACTED</span>
+                        {editBadges.length > 0 && (
+                          <div className={cn("absolute top-1.5 z-[2] flex flex-wrap gap-1", isSelected ? "left-[34px]" : "left-1.5")}>
+                            {editBadges.map(b => (
+                              <div key={b.label} className={cn("rounded px-1.5 py-px", b.bg)}>
+                                <span className="text-white text-[10px] font-semibold">{b.label}</span>
+                              </div>
+                            ))}
                           </div>
                         )}
                         <button onClick={e => { e.stopPropagation(); removePage(page.id); }}
