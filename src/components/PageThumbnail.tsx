@@ -23,11 +23,25 @@ const PageThumbnail = ({ pdfBuffer, pageIndex, width = 150, rotation = 0, overla
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [rendered, setRendered] = useState(false);
 
+  // Track in-flight render across effect runs so we wait for the previous
+  // operation to fully release the canvas before starting a new one.
+  const inFlightRef = useRef<Promise<void> | null>(null);
+  const renderTaskRef = useRef<{ cancel: () => void; promise: Promise<void> } | null>(null);
+
   useEffect(() => {
     let cancelled = false;
-    let renderTask: { cancel: () => void; promise: Promise<void> } | null = null;
     let pdfDoc: { destroy: () => Promise<void> } | null = null;
-    const render = async () => {
+
+    const run = async () => {
+      // Cancel and await any prior render on this canvas before starting.
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch { /* noop */ }
+      }
+      if (inFlightRef.current) {
+        try { await inFlightRef.current; } catch { /* noop */ }
+      }
+      if (cancelled) return;
+
       try {
         const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer.slice(0)) }).promise;
         if (cancelled) { pdf.destroy(); return; }
@@ -47,8 +61,10 @@ const PageThumbnail = ({ pdfBuffer, pageIndex, width = 150, rotation = 0, overla
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        renderTask = page.render({ canvasContext: ctx, viewport: scaledViewport }) as unknown as { cancel: () => void; promise: Promise<void> };
-        await renderTask.promise;
+        const task = page.render({ canvasContext: ctx, viewport: scaledViewport }) as unknown as { cancel: () => void; promise: Promise<void> };
+        renderTaskRef.current = task;
+        await task.promise;
+        if (renderTaskRef.current === task) renderTaskRef.current = null;
         if (cancelled) return;
 
         const cw = scaledViewport.width;
@@ -141,10 +157,11 @@ const PageThumbnail = ({ pdfBuffer, pageIndex, width = 150, rotation = 0, overla
       }
     };
     setRendered(false);
-    render();
+    const p = run();
+    inFlightRef.current = p;
     return () => {
       cancelled = true;
-      if (renderTask) { try { renderTask.cancel(); } catch { /* noop */ } }
+      if (renderTaskRef.current) { try { renderTaskRef.current.cancel(); } catch { /* noop */ } }
     };
   }, [pdfBuffer, pageIndex, width, rotation, overlays]);
 
