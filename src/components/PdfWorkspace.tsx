@@ -41,7 +41,7 @@ const TOOLS: { id: ToolType; label: string; desc: string; icon: React.ElementTyp
   { id: 'compress', label: 'Compress', desc: 'Reduce size', icon: Zap, group: 'Enhance' },
   { id: 'pageNumbers', label: 'Page Numbers', desc: 'Add numbering', icon: Hash, group: 'Enhance' },
   { id: 'watermark', label: 'Watermark', desc: 'Text overlay', icon: Droplets, group: 'Enhance' },
-  { id: 'redact', label: 'Redact', desc: 'Black out areas', icon: EyeOff, group: 'Modify' },
+  { id: 'redact', label: 'Black-out', desc: 'Visual cover only — does NOT remove underlying text', icon: EyeOff, group: 'Modify' },
   { id: 'crop', label: 'Crop', desc: 'Trim margins', icon: Crop, group: 'Modify' },
   { id: 'annotate', label: 'Text', desc: 'Add text', icon: Type, group: 'Annotate' },
   { id: 'highlight', label: 'Highlight', desc: 'Mark areas', icon: Highlighter, group: 'Annotate' },
