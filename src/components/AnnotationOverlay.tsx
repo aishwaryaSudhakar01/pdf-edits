@@ -290,7 +290,8 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
     const data = new Uint8Array(await blob.arrayBuffer());
     const w = 150; const h = 75;
     const cx = pageSize.width / 2; const cy = pageSize.height / 2;
-    setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'signature', x: cx - w / 2, y: cy + h / 2, width: w, height: h, signatureData: data }]);
+    const imageKey = putImage(data, 'png');
+    setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'signature', x: cx - w / 2, y: cy + h / 2, width: w, height: h, imageKey, imageType: 'png' }]);
     setSigPoints([]);
   };
 
