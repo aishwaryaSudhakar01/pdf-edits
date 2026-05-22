@@ -254,9 +254,8 @@ const PdfWorkspace = () => {
   const [compressedSize, setCompressedSize] = useState(0);
   const [compressedBlob, setCompressedBlob] = useState<Blob | null>(null);
 
-  // Split groups
-  const [splitGroups, setSplitGroups] = useState<string[][]>([[]]); // stores page IDs
-  const [activeSplitGroup, setActiveSplitGroup] = useState(0);
+  // Split groups (page IDs) — splitGroups & activeSplitGroup live in editorHistory; keep palette here
+
   const SPLIT_GROUPS = [
     { color: 'hsl(var(--split-group-blue))', tint: 'hsl(var(--split-group-blue) / 0.14)' },
     { color: 'hsl(var(--split-group-red))', tint: 'hsl(var(--split-group-red) / 0.14)' },
