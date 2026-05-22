@@ -37,11 +37,22 @@ const RedactOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingRects, onSa
   const pendingDragRef = useRef<{ idx: number; offset: { x: number; y: number } } | null>(null);
   const didStartDrag = useRef(false);
 
+  const renderTaskRef = useRef<{ cancel: () => void; promise: Promise<void> } | null>(null);
+  const inFlightRef = useRef<Promise<void> | null>(null);
+
   useEffect(() => {
+    let cancelled = false;
     const render = async () => {
+      if (renderTaskRef.current) { try { renderTaskRef.current.cancel(); } catch { /* noop */ } }
+      if (inFlightRef.current) { try { await inFlightRef.current; } catch { /* noop */ } }
+      if (cancelled) return;
+      let pdf: { destroy: () => Promise<void> } | null = null;
       try {
-        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer.slice(0)) }).promise;
-        const page = await pdf.getPage(pageIndex + 1);
+        const doc = await pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer.slice(0)) }).promise;
+        if (cancelled) { doc.destroy(); return; }
+        pdf = doc;
+        const page = await doc.getPage(pageIndex + 1);
+        if (cancelled) return;
         const vp = page.getViewport({ scale: 1, rotation });
         setPageSize({ width: vp.width, height: vp.height });
         const maxW = Math.min(800, window.innerWidth - 80);
@@ -50,15 +61,29 @@ const RedactOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingRects, onSa
         const scaled = page.getViewport({ scale, rotation });
         setDisplaySize({ width: scaled.width, height: scaled.height });
         const canvas = canvasRef.current;
-        if (!canvas) return;
+        if (!canvas || cancelled) return;
         canvas.width = scaled.width;
         canvas.height = scaled.height;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        await page.render({ canvasContext: ctx, viewport: scaled }).promise;
-      } catch (err) { console.error('Redact render failed:', err); }
+        const task = page.render({ canvasContext: ctx, viewport: scaled }) as unknown as { cancel: () => void; promise: Promise<void> };
+        renderTaskRef.current = task;
+        await task.promise;
+        if (renderTaskRef.current === task) renderTaskRef.current = null;
+      } catch (err: unknown) {
+        const name = (err as { name?: string })?.name;
+        if (name === 'RenderingCancelledException') return;
+        if (!cancelled) console.error('Redact render failed:', err);
+      } finally {
+        if (pdf) { try { await pdf.destroy(); } catch { /* noop */ } }
+      }
     };
-    render();
+    const p = render();
+    inFlightRef.current = p;
+    return () => {
+      cancelled = true;
+      if (renderTaskRef.current) { try { renderTaskRef.current.cancel(); } catch { /* noop */ } }
+    };
   }, [pdfBuffer, pageIndex, rotation]);
 
   useEffect(() => {
