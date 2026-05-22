@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { X, Type, Highlighter, ImageIcon, PenTool, Plus, Minus, Trash2, Undo2 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
+import { putImage, getImage } from '@/lib/image-store';
 
 if (typeof window !== 'undefined') { pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`; }
 
@@ -15,9 +16,14 @@ export interface Annotation {
   x: number; y: number; width: number; height: number;
   text?: string; fontSize?: number; color?: string;
   highlightColor?: string; highlightOpacity?: number;
-  imageData?: Uint8Array; imageType?: 'png' | 'jpg';
+  /** Content-addressed key into image-store (stamps + signatures). */
+  imageKey?: string; imageType?: 'png' | 'jpg';
+  /** @deprecated legacy inline bytes — kept for backwards compat with old snapshots. */
+  imageData?: Uint8Array;
+  /** @deprecated legacy inline bytes — kept for backwards compat with old snapshots. */
   signatureData?: Uint8Array;
 }
+
 
 interface AnnotationOverlayProps {
   pdfBuffer: ArrayBuffer;
@@ -248,7 +254,8 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
     const w = img.width * scale;
     const h = img.height * scale;
     const pdf = toPdf(drawStart.x || displaySize.width / 2, drawStart.y || displaySize.height / 2);
-    setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'stamp', x: pdf.x - w / 2, y: pdf.y + h / 2, width: w, height: h, imageData: data, imageType: type }]);
+    const imageKey = putImage(data, type);
+    setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'stamp', x: pdf.x - w / 2, y: pdf.y + h / 2, width: w, height: h, imageKey, imageType: type }]);
   };
 
   const getSigPos = (e: React.MouseEvent) => {
@@ -283,7 +290,8 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
     const data = new Uint8Array(await blob.arrayBuffer());
     const w = 150; const h = 75;
     const cx = pageSize.width / 2; const cy = pageSize.height / 2;
-    setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'signature', x: cx - w / 2, y: cy + h / 2, width: w, height: h, signatureData: data }]);
+    const imageKey = putImage(data, 'png');
+    setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'signature', x: cx - w / 2, y: cy + h / 2, width: w, height: h, imageKey, imageType: 'png' }]);
     setSigPoints([]);
   };
 
@@ -453,10 +461,14 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
               </div>
             );
           }
-          if ((ann.type === 'stamp' && ann.imageData) || (ann.type === 'signature' && ann.signatureData)) {
-            const data = ann.type === 'stamp' ? ann.imageData! : ann.signatureData!;
-            const mime = ann.type === 'stamp' ? (ann.imageType === 'png' ? 'image/png' : 'image/jpeg') : 'image/png';
-            const blob = new Blob([data.buffer as ArrayBuffer], { type: mime });
+          // Resolve image bytes: imageKey first (current), legacy inline fields second.
+          const imgBytes = ann.imageKey ? getImage(ann.imageKey)?.bytes
+            : ann.type === 'stamp' ? ann.imageData : ann.signatureData;
+          const imgType = ann.imageKey ? (getImage(ann.imageKey)?.type ?? 'png')
+            : (ann.type === 'stamp' ? (ann.imageType ?? 'png') : 'png');
+          if ((ann.type === 'stamp' || ann.type === 'signature') && imgBytes) {
+            const mime = imgType === 'png' ? 'image/png' : 'image/jpeg';
+            const blob = new Blob([imgBytes.buffer as ArrayBuffer], { type: mime });
             const url = URL.createObjectURL(blob);
             return (
               <div key={ann.id} style={{

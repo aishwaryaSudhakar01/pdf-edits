@@ -14,7 +14,11 @@ interface HistoryState<T> {
   canRedo: boolean;
 }
 
-export function useHistory<T>(initial: T, maxHistory = 100): HistoryState<T> {
+export function useHistory<T>(
+  initial: T,
+  maxHistory = 30,
+  equals: (a: T, b: T) => boolean = Object.is,
+): HistoryState<T> {
   const [current, setCurrent] = useState<T>(initial);
   const pastRef = useRef<T[]>([]);
   const futureRef = useRef<T[]>([]);
@@ -26,9 +30,8 @@ export function useHistory<T>(initial: T, maxHistory = 100): HistoryState<T> {
   const set = useCallback((val: T | ((prev: T) => T)) => {
     setCurrent(prev => {
       const next = typeof val === 'function' ? (val as (p: T) => T)(prev) : val;
-      if (Object.is(next, prev)) return prev;
+      if (equals(next, prev)) return prev;
       if (coalesceRef.current.active) {
-        // First set inside a coalesce window: capture baseline; subsequent sets just update value
         if (coalesceRef.current.baseline === null) coalesceRef.current.baseline = prev;
       } else {
         pastRef.current = [...pastRef.current.slice(-(maxHistory - 1)), prev];
@@ -37,7 +40,8 @@ export function useHistory<T>(initial: T, maxHistory = 100): HistoryState<T> {
       return next;
     });
     tick();
-  }, [maxHistory, tick]);
+  }, [maxHistory, tick, equals]);
+
 
   const update = useCallback((val: T | ((prev: T) => T)) => {
     setCurrent(prev => {

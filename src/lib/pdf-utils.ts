@@ -1,6 +1,7 @@
 import { PDFDocument, rgb, StandardFonts, degrees, PDFPage } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import type { Annotation } from '../components/AnnotationOverlay';
+import { getImageBytes } from './image-store';
 
 /* ── Errors ────────────────────────────────────── */
 
@@ -216,33 +217,25 @@ export async function buildFinalPdf(
           color: hexToRgb(ann.highlightColor || '#FFFF00'),
           opacity: ann.highlightOpacity || 0.4,
         });
-      } else if (ann.type === 'stamp' && ann.imageData) {
+      } else if (ann.type === 'stamp' || ann.type === 'signature') {
+        // Resolve bytes via image-store (current) or legacy inline fields.
+        const stampBytes = ann.imageKey ? getImageBytes(ann.imageKey)
+          : ann.type === 'stamp' ? ann.imageData : ann.signatureData;
+        const stampType: 'png' | 'jpg' = ann.type === 'signature' ? 'png' : (ann.imageType ?? 'png');
+        if (!stampBytes) {
+          throw new PdfOpError(ann.type, `${describeOp(ann.type)} failed on page ${i + 1}: missing image data`, { pageIndex: i });
+        }
         try {
-          const img = ann.imageType === 'png'
-            ? await doc.embedPng(ann.imageData)
-            : await doc.embedJpg(ann.imageData);
+          const img = stampType === 'png' ? await doc.embedPng(stampBytes) : await doc.embedJpg(stampBytes);
           copied.drawImage(img, {
             x: ann.x, y: ann.y - ann.height,
             width: ann.width, height: ann.height,
           });
         } catch (e) {
-          throw new PdfOpError('stamp', `${describeOp('stamp')} failed on page ${i + 1}: ${(e as Error)?.message || 'invalid image data'}`, { pageIndex: i, cause: e });
+          throw new PdfOpError(ann.type, `${describeOp(ann.type)} failed on page ${i + 1}: ${(e as Error)?.message || 'invalid image data'}`, { pageIndex: i, cause: e });
         }
-      } else if (ann.type === 'signature' && ann.signatureData) {
-        try {
-          const img = await doc.embedPng(ann.signatureData);
-          copied.drawImage(img, {
-            x: ann.x, y: ann.y - ann.height,
-            width: ann.width, height: ann.height,
-          });
-        } catch (e) {
-          throw new PdfOpError('signature', `${describeOp('signature')} failed on page ${i + 1}: ${(e as Error)?.message || 'invalid signature data'}`, { pageIndex: i, cause: e });
-        }
-      } else if (ann.type === 'stamp' && !ann.imageData) {
-        throw new PdfOpError('stamp', `${describeOp('stamp')} failed on page ${i + 1}: missing image data`, { pageIndex: i });
-      } else if (ann.type === 'signature' && !ann.signatureData) {
-        throw new PdfOpError('signature', `${describeOp('signature')} failed on page ${i + 1}: missing signature data`, { pageIndex: i });
       }
+
     }
   }
 
