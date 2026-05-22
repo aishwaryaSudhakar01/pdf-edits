@@ -2,6 +2,40 @@ import { PDFDocument, rgb, StandardFonts, degrees, PDFPage } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import type { Annotation } from '../components/AnnotationOverlay';
 
+/* ── Errors ────────────────────────────────────── */
+
+export type PdfOperationKind =
+  | 'stamp' | 'signature' | 'text' | 'highlight'
+  | 'pageNumbers' | 'watermark' | 'redact' | 'crop'
+  | 'compress' | 'resize' | 'split' | 'metadata'
+  | 'rotate' | 'organize' | 'annotations' | 'output';
+
+export class PdfOpError extends Error {
+  operation: PdfOperationKind;
+  pageIndex: number | null;
+  recoverable: boolean;
+  cause?: unknown;
+  constructor(operation: PdfOperationKind, message: string, opts: { pageIndex?: number | null; recoverable?: boolean; cause?: unknown } = {}) {
+    super(message);
+    this.name = 'PdfOpError';
+    this.operation = operation;
+    this.pageIndex = opts.pageIndex ?? null;
+    this.recoverable = opts.recoverable ?? true;
+    this.cause = opts.cause;
+  }
+}
+
+function describeOp(op: PdfOperationKind): string {
+  const map: Record<PdfOperationKind, string> = {
+    stamp: 'Image stamp', signature: 'Signature', text: 'Text annotation',
+    highlight: 'Highlight', pageNumbers: 'Page numbers', watermark: 'Watermark',
+    redact: 'Black-out', crop: 'Crop', compress: 'Compression', resize: 'Resize',
+    split: 'Split', metadata: 'Metadata', rotate: 'Rotate', organize: 'Organize',
+    annotations: 'Annotations', output: 'Output',
+  };
+  return map[op];
+}
+
 /* ── Types ─────────────────────────────────────── */
 
 export interface PageItem {
@@ -191,7 +225,9 @@ export async function buildFinalPdf(
             x: ann.x, y: ann.y - ann.height,
             width: ann.width, height: ann.height,
           });
-        } catch (e) { console.warn('Failed to embed stamp', e); }
+        } catch (e) {
+          throw new PdfOpError('stamp', `${describeOp('stamp')} failed on page ${i + 1}: ${(e as Error)?.message || 'invalid image data'}`, { pageIndex: i, cause: e });
+        }
       } else if (ann.type === 'signature' && ann.signatureData) {
         try {
           const img = await doc.embedPng(ann.signatureData);
@@ -199,12 +235,18 @@ export async function buildFinalPdf(
             x: ann.x, y: ann.y - ann.height,
             width: ann.width, height: ann.height,
           });
-        } catch (e) { console.warn('Failed to embed signature', e); }
+        } catch (e) {
+          throw new PdfOpError('signature', `${describeOp('signature')} failed on page ${i + 1}: ${(e as Error)?.message || 'invalid signature data'}`, { pageIndex: i, cause: e });
+        }
+      } else if (ann.type === 'stamp' && !ann.imageData) {
+        throw new PdfOpError('stamp', `${describeOp('stamp')} failed on page ${i + 1}: missing image data`, { pageIndex: i });
+      } else if (ann.type === 'signature' && !ann.signatureData) {
+        throw new PdfOpError('signature', `${describeOp('signature')} failed on page ${i + 1}: missing signature data`, { pageIndex: i });
       }
     }
   }
 
-  if (doc.getPageCount() === 0) throw new Error('No pages');
+  if (doc.getPageCount() === 0) throw new PdfOpError('output', 'Output PDF has no pages', { recoverable: false });
 
   // Apply metadata
   const meta = options.metadata;

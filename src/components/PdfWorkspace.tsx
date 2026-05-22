@@ -23,8 +23,10 @@ import type { CropValues } from '../lib/pdf-utils';
 import {
   type PageItem, type SourceFile, type RedactRect, type BuildOptions,
   formatBytes, buildFinalPdf, parseSplitRanges, splitPdf, imagesToPdf, compressPdf, convertToPageSize, blobToPipeline, PAGE_SIZES,
+  PdfOpError,
 } from '../lib/pdf-utils';
 import { useHistory } from '../lib/useHistory';
+import { preflightQueue, detectQueueAmbiguities, assertNonEmpty, assertSinglePdfPageCount, type PreflightIssue, type QueueAmbiguity } from '../lib/queue-runner';
 
 if (typeof window !== 'undefined') { pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`; }
 
@@ -39,7 +41,7 @@ const TOOLS: { id: ToolType; label: string; desc: string; icon: React.ElementTyp
   { id: 'compress', label: 'Compress', desc: 'Reduce size', icon: Zap, group: 'Enhance' },
   { id: 'pageNumbers', label: 'Page Numbers', desc: 'Add numbering', icon: Hash, group: 'Enhance' },
   { id: 'watermark', label: 'Watermark', desc: 'Text overlay', icon: Droplets, group: 'Enhance' },
-  { id: 'redact', label: 'Redact', desc: 'Black out areas', icon: EyeOff, group: 'Modify' },
+  { id: 'redact', label: 'Black-out', desc: 'Visual cover only — does NOT remove underlying text', icon: EyeOff, group: 'Modify' },
   { id: 'crop', label: 'Crop', desc: 'Trim margins', icon: Crop, group: 'Modify' },
   { id: 'annotate', label: 'Text', desc: 'Add text', icon: Type, group: 'Annotate' },
   { id: 'highlight', label: 'Highlight', desc: 'Mark areas', icon: Highlighter, group: 'Annotate' },
@@ -167,23 +169,74 @@ const ProcessingOverlay = ({ state, onRetry, onCancel }: {
 
 /* ── Component ─────────────────────────────────── */
 
+interface EditorSnapshot {
+  pages: PageItem[];
+  annotationsMap: Map<number, Annotation[]>;
+  redactions: Map<number, RedactRect[]>;
+  cropMap: Map<number, CropValues>;
+  splitGroups: string[][];
+  editQueue: QueueItem[];
+}
+
+const emptySnapshot = (): EditorSnapshot => ({
+  pages: [],
+  annotationsMap: new Map(),
+  redactions: new Map(),
+  cropMap: new Map(),
+  splitGroups: [[]],
+  editQueue: [],
+});
+
 const PdfWorkspace = () => {
   const { mode: themeMode, toggle: toggleTheme } = useThemeMode();
 
   // Core state — the ORIGINAL file is never modified
   const [sources, setSources] = useState<Map<string, SourceFile>>(new Map());
-  const pagesHistory = useHistory<PageItem[]>([]);
-  const pages = pagesHistory.current;
-  const setPages = pagesHistory.set;
+
+  // ── Unified editor history (single Cmd+Z stack) ──
+  const editorHistory = useHistory<EditorSnapshot>(emptySnapshot());
+  const editor = editorHistory.current;
+  const pages = editor.pages;
+  const annotationsMap = editor.annotationsMap;
+  const redactions = editor.redactions;
+  const cropMap = editor.cropMap;
+  const splitGroups = editor.splitGroups;
+  const editQueue = editor.editQueue;
+
+  // Setter wrappers — every Map setter clones-on-write so prior history snapshots stay intact.
+  const setPages = useCallback((val: PageItem[] | ((prev: PageItem[]) => PageItem[])) => {
+    editorHistory.set(prev => ({ ...prev, pages: typeof val === 'function' ? (val as (p: PageItem[]) => PageItem[])(prev.pages) : val }));
+  }, [editorHistory]);
+  const setAnnotationsMap = useCallback((val: Map<number, Annotation[]> | ((prev: Map<number, Annotation[]>) => Map<number, Annotation[]>)) => {
+    editorHistory.set(prev => ({ ...prev, annotationsMap: typeof val === 'function' ? (val as (p: Map<number, Annotation[]>) => Map<number, Annotation[]>)(prev.annotationsMap) : val }));
+  }, [editorHistory]);
+  const setRedactions = useCallback((val: Map<number, RedactRect[]> | ((prev: Map<number, RedactRect[]>) => Map<number, RedactRect[]>)) => {
+    editorHistory.set(prev => ({ ...prev, redactions: typeof val === 'function' ? (val as (p: Map<number, RedactRect[]>) => Map<number, RedactRect[]>)(prev.redactions) : val }));
+  }, [editorHistory]);
+  const setCropMap = useCallback((val: Map<number, CropValues> | ((prev: Map<number, CropValues>) => Map<number, CropValues>)) => {
+    editorHistory.set(prev => ({ ...prev, cropMap: typeof val === 'function' ? (val as (p: Map<number, CropValues>) => Map<number, CropValues>)(prev.cropMap) : val }));
+  }, [editorHistory]);
+  const setSplitGroups = useCallback((val: string[][] | ((prev: string[][]) => string[][])) => {
+    editorHistory.set(prev => ({ ...prev, splitGroups: typeof val === 'function' ? (val as (p: string[][]) => string[][])(prev.splitGroups) : val }));
+  }, [editorHistory]);
+  const setEditQueue = useCallback((val: QueueItem[] | ((prev: QueueItem[]) => QueueItem[])) => {
+    editorHistory.set(prev => ({ ...prev, editQueue: typeof val === 'function' ? (val as (p: QueueItem[]) => QueueItem[])(prev.editQueue) : val }));
+  }, [editorHistory]);
+  // Non-history version — for incidental sync (e.g. auto-add to queue from useEffect) we
+  // don't want to push history entries the user didn't make consciously.
+  const updateEditQueue = useCallback((val: QueueItem[] | ((prev: QueueItem[]) => QueueItem[])) => {
+    editorHistory.update(prev => ({ ...prev, editQueue: typeof val === 'function' ? (val as (p: QueueItem[]) => QueueItem[])(prev.editQueue) : val }));
+  }, [editorHistory]);
+
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
   const [activeTool, setActiveTool] = useState<ToolType>('organize');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // ── Edit Queue ──
-  const [editQueue, setEditQueue] = useState<QueueItem[]>([]);
-  const [splitMovedToast, setSplitMovedToast] = useState(false);
+  // ── Edit Queue UI state ──
+  const [activeSplitGroup, setActiveSplitGroup] = useState(0);
   const [processingState, setProcessingState] = useState<ProcessingState | null>(null);
-  const retryFromRef = useRef<number>(0);
+  const [preflightIssues, setPreflightIssues] = useState<PreflightIssue[] | null>(null);
+  const [compressWarning, setCompressWarning] = useState<{ pendingRun: () => void } | null>(null);
 
   // Queue drag state
   const [dragQueueIdx, setDragQueueIdx] = useState<number | null>(null);
@@ -201,9 +254,8 @@ const PdfWorkspace = () => {
   const [compressedSize, setCompressedSize] = useState(0);
   const [compressedBlob, setCompressedBlob] = useState<Blob | null>(null);
 
-  // Split groups
-  const [splitGroups, setSplitGroups] = useState<string[][]>([[]]); // stores page IDs
-  const [activeSplitGroup, setActiveSplitGroup] = useState(0);
+  // Split groups (page IDs) — splitGroups & activeSplitGroup live in editorHistory; keep palette here
+
   const SPLIT_GROUPS = [
     { color: 'hsl(var(--split-group-blue))', tint: 'hsl(var(--split-group-blue) / 0.14)' },
     { color: 'hsl(var(--split-group-red))', tint: 'hsl(var(--split-group-red) / 0.14)' },
@@ -254,11 +306,11 @@ const PdfWorkspace = () => {
   const [wmAngle, setWmAngle] = useState(-45);
 
   // Redact
-  const [redactions, setRedactions] = useState<Map<number, RedactRect[]>>(new Map());
+  // Redact — redactions Map lives in editorHistory
   const [redactPageIdx, setRedactPageIdx] = useState<number | null>(null);
 
   // Crop
-  const [cropMap, setCropMap] = useState<Map<number, CropValues>>(new Map());
+  // Crop — cropMap lives in editorHistory
   const [cropPageIdx, setCropPageIdx] = useState<number | null>(null);
   const cropEnabled = cropMap.size > 0;
 
@@ -284,7 +336,7 @@ const PdfWorkspace = () => {
   const [metaKeywords, setMetaKeywords] = useState('');
 
   // Annotations
-  const [annotationsMap, setAnnotationsMap] = useState<Map<number, Annotation[]>>(new Map());
+  // Annotations — annotationsMap lives in editorHistory
   const [annotatePageIdx, setAnnotatePageIdx] = useState<number | null>(null);
   const [annotateMode, setAnnotateMode] = useState<AnnotationType>('text');
   const totalAnnotations = Array.from(annotationsMap.values()).reduce((s, a) => s + a.length, 0);
@@ -298,27 +350,22 @@ const PdfWorkspace = () => {
   const hasPdfPages = pages.length > 0;
   const hasMetadata = !!(metaTitle || metaAuthor || metaSubject || metaKeywords);
 
-  /* ── Edit Queue Management ────────────────────── */
-  const addToQueue = useCallback((type: QueueStepType) => {
-    setEditQueue(prev => {
+  /* ── Edit Queue Management ──────────────────────
+     The user's queue order is the source of truth. We never silently move steps. */
+  const addToQueueIncidental = useCallback((type: QueueStepType) => {
+    // Auto-adds from useEffect: never push history entries the user didn't make.
+    updateEditQueue(prev => {
       if (prev.some(item => item.type === type)) return prev;
       const newItem: QueueItem = { id: crypto.randomUUID(), type };
-      const newQueue = [...prev, newItem];
-      // If adding a non-split item and split exists, ensure split stays last
-      if (type !== 'split') {
-        const splitIdx = newQueue.findIndex(i => i.type === 'split');
-        if (splitIdx >= 0 && splitIdx !== newQueue.length - 1) {
-          const [splitItem] = newQueue.splice(splitIdx, 1);
-          newQueue.push(splitItem);
-        }
-      }
-      return newQueue;
+      return [...prev, newItem];
     });
-  }, []);
+  }, [updateEditQueue]);
+  // Kept for explicit user-initiated adds (currently unused, retained for future use)
+  const addToQueue = addToQueueIncidental;
 
   const removeFromQueue = useCallback((type: QueueStepType) => {
     setEditQueue(prev => prev.filter(item => item.type !== type));
-    // Clear the corresponding settings
+    // Clear the corresponding settings (these are user actions → history entry already pushed)
     const clearMap: Record<string, () => void> = {
       rotate: () => setPages(prev => prev.map(p => ({ ...p, rotation: 0 }))),
       pageNumbers: () => setPnEnabled(false),
@@ -332,7 +379,7 @@ const PdfWorkspace = () => {
       split: () => { setSplitGroups([[]]); setActiveSplitGroup(0); },
     };
     clearMap[type]?.();
-  }, [setPages]);
+  }, [setPages, setEditQueue, setRedactions, setCropMap, setAnnotationsMap, setSplitGroups]);
 
   const reorderQueue = useCallback((fromIdx: number, toIdx: number) => {
     if (fromIdx === toIdx) return;
@@ -340,17 +387,12 @@ const PdfWorkspace = () => {
       const newQueue = [...prev];
       const [item] = newQueue.splice(fromIdx, 1);
       newQueue.splice(toIdx, 0, item);
-      // Enforce split at end
-      const splitIdx = newQueue.findIndex(i => i.type === 'split');
-      if (splitIdx >= 0 && splitIdx !== newQueue.length - 1) {
-        const [splitItem] = newQueue.splice(splitIdx, 1);
-        newQueue.push(splitItem);
-        setSplitMovedToast(true);
-        setTimeout(() => setSplitMovedToast(false), 3000);
-      }
+      // The user's chosen order is honored. Ambiguities are surfaced inline,
+      // not silently corrected.
       return newQueue;
     });
-  }, []);
+  }, [setEditQueue]);
+
 
   /* ── Auto-add to queue when settings become active ── */
   useEffect(() => {
@@ -512,6 +554,41 @@ const PdfWorkspace = () => {
   const handleDownload = async (retryFrom = 0) => {
     // Build the processing steps from the edit queue (excluding organize which is implicit)
     const queueSteps = editQueue.filter(item => item.type !== 'organize');
+
+    // Preflight: validate everything before processing starts.
+    if (retryFrom === 0) {
+      const issues = preflightQueue(editQueue, {
+        pages, annotationsMap, redactions, cropMap, splitGroups,
+        pn: { enabled: pnEnabled, fontSize: pnFontSize, startNumber: parseInt(pnStart) || 1 },
+        wm: { enabled: wmEnabled, text: wmText, textByPage: wmTextByPage, fontSize: wmFontSize },
+        resize: {
+          enabled: resizeEnabled,
+          width: resizePreset >= 0 ? PAGE_SIZES[resizePreset].width : parseFloat(customW) || 612,
+          height: resizePreset >= 0 ? PAGE_SIZES[resizePreset].height : parseFloat(customH) || 792,
+        },
+        compress: { enabled: compressEnabled, quality },
+      });
+      if (issues.length > 0) {
+        setPreflightIssues(issues);
+        return;
+      }
+
+      // Compress-with-vector-ops safety warning (low quality only).
+      const hasCompress = editQueue.some(q => q.type === 'compress');
+      const hasVectorAfterCompress = (() => {
+        const ci = editQueue.findIndex(q => q.type === 'compress');
+        if (ci < 0) return false;
+        const vector: QueueStepType[] = ['annotations', 'watermark', 'pageNumbers', 'redact'];
+        return editQueue.slice(0, ci).some(q => vector.includes(q.type));
+      })();
+      if (hasCompress && hasVectorAfterCompress && quality < 60 && !compressWarning) {
+        setCompressWarning({
+          pendingRun: () => { setCompressWarning(null); handleDownload(retryFrom); },
+        });
+        return;
+      }
+    }
+
     if (queueSteps.length === 0 && hasPdfPages) {
       // No edits queued, just download the organized PDF
       setProcessing(true);
@@ -551,7 +628,7 @@ const PdfWorkspace = () => {
     }
 
     setProcessingState({ steps: allDisplaySteps, failedIndex: null });
-    retryFromRef.current = retryFrom;
+    
 
     try {
       let blob: Blob | null = null;
@@ -736,12 +813,12 @@ const PdfWorkspace = () => {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); pagesHistory.undo(); }
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); pagesHistory.redo(); }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); editorHistory.undo(); }
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); editorHistory.redo(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [pagesHistory]);
+  }, [editorHistory]);
 
   const openFilePicker = () => { if (fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } };
   const openImagePicker = () => { if (imageInputRef.current) { imageInputRef.current.value = ''; imageInputRef.current.click(); } };
@@ -785,13 +862,22 @@ const PdfWorkspace = () => {
     if (editQueue.length === 0) return null;
     return (
       <div className="mt-4 md:mt-5 p-3 md:p-4 md:px-5 border border-border rounded-md overflow-hidden">
-        {/* Split-moved toast */}
-        {splitMovedToast && (
-          <div className="flex items-center gap-2 mb-3 p-2 rounded bg-accent border border-border">
-            <AlertTriangle size={14} className="text-primary shrink-0" />
-            <span className="text-xs text-foreground">Split has been moved to the end of your workflow</span>
-          </div>
-        )}
+        {/* Ambiguity inline notes */}
+        {(() => {
+          const ambiguities = detectQueueAmbiguities(editQueue);
+          if (ambiguities.length === 0) return null;
+          return (
+            <div className="flex flex-col gap-1 mb-3">
+              {ambiguities.map((amb, i) => (
+                <div key={i} className="flex items-start gap-2 p-2 rounded bg-accent border border-border">
+                  <AlertTriangle size={14} className="text-primary shrink-0 mt-px" />
+                  <span className="text-xs text-foreground">{amb.message} <span className="text-muted-foreground">({amb.swapHint})</span></span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
 
         <div className="flex items-center gap-2 mb-3">
           <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wider">Edit Queue</span>
@@ -937,10 +1023,10 @@ const PdfWorkspace = () => {
                 </div>
                 <div className="flex gap-2">
                   <ToolbarTooltip content="Undo (Ctrl+Z)">
-                    <Button variant="tertiary" size="mini" onClick={pagesHistory.undo} disabled={!pagesHistory.canUndo} aria-label="Undo"><Undo2 size={14} /></Button>
+                    <Button variant="tertiary" size="mini" onClick={editorHistory.undo} disabled={!editorHistory.canUndo} aria-label="Undo"><Undo2 size={14} /></Button>
                   </ToolbarTooltip>
                   <ToolbarTooltip content="Redo (Ctrl+Y)">
-                    <Button variant="tertiary" size="mini" onClick={pagesHistory.redo} disabled={!pagesHistory.canRedo} aria-label="Redo"><Redo2 size={14} /></Button>
+                    <Button variant="tertiary" size="mini" onClick={editorHistory.redo} disabled={!editorHistory.canRedo} aria-label="Redo"><Redo2 size={14} /></Button>
                   </ToolbarTooltip>
                   {selectedPageIds.size > 0 && (
                     <ToolbarTooltip content="Delete selected pages">
@@ -1451,6 +1537,47 @@ const PdfWorkspace = () => {
       </div>
 
       {/* Processing Overlay */}
+      {/* Preflight issues dialog */}
+      {preflightIssues && (
+        <div className="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+          <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
+            <h3 className="text-foreground font-semibold text-base mb-2">Fix these before processing</h3>
+            <p className="text-muted-foreground text-xs mb-4">{preflightIssues.length} issue{preflightIssues.length !== 1 ? 's' : ''} would prevent a correct output.</p>
+            <ul className="flex flex-col gap-2 mb-5">
+              {preflightIssues.map((iss, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm">
+                  <AlertTriangle size={14} className="text-destructive shrink-0 mt-1" />
+                  <div>
+                    <span className="text-foreground font-medium">{STEP_META[iss.operation as QueueStepType]?.label || iss.operation}:</span>{' '}
+                    <span className="text-muted-foreground">{iss.message}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-end">
+              <Button variant="positive" size="compact" onClick={() => setPreflightIssues(null)}>Got it</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Compression warning — vector ops will be rasterized */}
+      {compressWarning && (
+        <div className="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+          <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-foreground font-semibold text-base mb-2">Low-quality compression will rasterize edits</h3>
+            <p className="text-muted-foreground text-sm mb-5">
+              Compression runs before vector edits (annotations, watermark, page numbers, black-out) at quality &lt;60%.
+              Pages will be re-rendered as JPEG. Continue?
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="secondary" size="compact" onClick={() => setCompressWarning(null)}>Cancel</Button>
+              <Button variant="positive" size="compact" onClick={() => compressWarning.pendingRun()}>Continue</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {processingState && (
         <ProcessingOverlay
           state={processingState}
