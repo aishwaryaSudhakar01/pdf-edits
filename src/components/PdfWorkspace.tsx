@@ -23,8 +23,10 @@ import type { CropValues } from '../lib/pdf-utils';
 import {
   type PageItem, type SourceFile, type RedactRect, type BuildOptions,
   formatBytes, buildFinalPdf, parseSplitRanges, splitPdf, imagesToPdf, compressPdf, convertToPageSize, blobToPipeline, PAGE_SIZES,
+  PdfOpError,
 } from '../lib/pdf-utils';
 import { useHistory } from '../lib/useHistory';
+import { preflightQueue, detectQueueAmbiguities, assertNonEmpty, assertSinglePdfPageCount, type PreflightIssue, type QueueAmbiguity } from '../lib/queue-runner';
 
 if (typeof window !== 'undefined') { pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`; }
 
