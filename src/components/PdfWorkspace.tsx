@@ -336,7 +336,7 @@ const PdfWorkspace = () => {
   const [metaKeywords, setMetaKeywords] = useState('');
 
   // Annotations
-  const [annotationsMap, setAnnotationsMap] = useState<Map<number, Annotation[]>>(new Map());
+  // Annotations — annotationsMap lives in editorHistory
   const [annotatePageIdx, setAnnotatePageIdx] = useState<number | null>(null);
   const [annotateMode, setAnnotateMode] = useState<AnnotationType>('text');
   const totalAnnotations = Array.from(annotationsMap.values()).reduce((s, a) => s + a.length, 0);
