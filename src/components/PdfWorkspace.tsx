@@ -600,16 +600,13 @@ const PdfWorkspace = () => {
   };
 
   const handleReset = () => {
-    setSources(new Map()); setPages([]); setSelectedPageIds(new Set());
-    setCompressedBlob(null); setCompressedSize(0); setQuality(70);
-    setRedactions(new Map()); setUploadedImages([]);
-    setPnEnabled(false); setWmEnabled(false); setWmText(''); setWmTextByPage(new Map());
-    setCropMap(new Map()); setWmPages(new Set());
-    setResizeEnabled(false); setCompressEnabled(false);
-    setMetaTitle(''); setMetaAuthor(''); setMetaSubject(''); setMetaKeywords('');
-    setAnnotationsMap(new Map());
-    setSplitGroups([[]]); setActiveSplitGroup(0);
-    setEditQueue([]);
+    setSources(new Map());
+    setSelectedPageIds(new Set());
+    setCompressedBlob(null); setCompressedSize(0);
+    setUploadedImages([]);
+    setActiveSplitGroup(0);
+    // One history entry for the entire reset.
+    editorHistory.set(() => emptySnapshot());
   };
 
   /* ── Save helper ─────────────────────────────── */
