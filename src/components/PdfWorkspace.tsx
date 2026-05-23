@@ -1423,7 +1423,7 @@ const PdfWorkspace = () => {
                     <span className="font-medium text-sm">Quality</span>
                     <span className="font-medium text-sm">{quality}%</span>
                   </div>
-                  <Slider value={[quality]} onValueChange={v => { setQuality(v[0]); setCompressEnabled(true); }} min={10} max={100} step={5} />
+                  <Slider value={[quality]} onValueChange={slideChange<number[]>(v => { setQuality(v[0]); setCompressEnabled(true); })} onValueCommit={endCoalesce} min={10} max={100} step={5} />
                   <div className="flex justify-between items-center p-4 border border-border rounded-md mt-4">
                     <div>
                       <span className="text-muted-foreground text-xs">Compressed Preview</span>
