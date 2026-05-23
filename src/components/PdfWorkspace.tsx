@@ -1504,15 +1504,15 @@ const PdfWorkspace = () => {
                     </div>
                     <div className="min-w-[100px]">
                       <span className="text-xs font-medium">Opacity: {wmOpacity}%</span>
-                      <Slider value={[wmOpacity]} onValueChange={v => { setWmOpacity(v[0]); if (wmEnabled) setWmEnabled(true); }} min={5} max={80} step={5} />
+                      <Slider value={[wmOpacity]} onValueChange={slideChange<number[]>(v => { setWmOpacity(v[0]); })} onValueCommit={endCoalesce} min={5} max={80} step={5} />
                     </div>
                     <div className="min-w-[100px]">
                       <span className="text-xs font-medium">Size: {wmFontSize}px</span>
-                      <Slider value={[wmFontSize]} onValueChange={v => { setWmFontSize(v[0]); if (wmEnabled) setWmEnabled(true); }} min={12} max={96} step={4} />
+                      <Slider value={[wmFontSize]} onValueChange={slideChange<number[]>(v => { setWmFontSize(v[0]); })} onValueCommit={endCoalesce} min={12} max={96} step={4} />
                     </div>
                     <div className="min-w-[100px]">
                       <span className="text-xs font-medium">Angle: {wmAngle}°</span>
-                      <Slider value={[wmAngle]} onValueChange={v => { setWmAngle(v[0]); if (wmEnabled) setWmEnabled(true); }} min={-90} max={90} step={5} />
+                      <Slider value={[wmAngle]} onValueChange={slideChange<number[]>(v => { setWmAngle(v[0]); })} onValueCommit={endCoalesce} min={-90} max={90} step={5} />
                     </div>
                   </div>
 
