@@ -1464,11 +1464,11 @@ const PdfWorkspace = () => {
                   </div>
                   <div className="min-w-[120px]">
                     <span className="text-xs font-medium mb-2 block">Font size: {pnFontSize}px</span>
-                    <Slider value={[pnFontSize]} onValueChange={v => { setPnFontSize(v[0]); setPnEnabled(true); }} min={8} max={24} step={1} />
+                    <Slider value={[pnFontSize]} onValueChange={slideChange<number[]>(v => { setPnFontSize(v[0]); setPnEnabled(true); })} onValueCommit={endCoalesce} min={8} max={24} step={1} />
                   </div>
                   <div className="min-w-[80px]">
                     <span className="text-xs font-medium mb-2 block">Start at</span>
-                    <Input type="number" value={pnStart} onChange={e => { setPnStart(e.target.value); setPnEnabled(true); }} className="h-7 text-xs" />
+                    <Input type="number" value={pnStart} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => { setPnStart(e.target.value); setPnEnabled(true); }} className="h-7 text-xs" />
                   </div>
                 </div>
               )}
