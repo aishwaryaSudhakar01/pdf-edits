@@ -430,22 +430,30 @@ const PdfWorkspace = () => {
   const addToQueue = addToQueueIncidental;
 
   const removeFromQueue = useCallback((type: QueueStepType) => {
-    setEditQueue(prev => prev.filter(item => item.type !== type));
-    // Clear the corresponding settings (these are user actions → history entry already pushed)
-    const clearMap: Record<string, () => void> = {
-      rotate: () => setPages(prev => prev.map(p => ({ ...p, rotation: 0 }))),
-      pageNumbers: () => setPnEnabled(false),
-      watermark: () => { setWmEnabled(false); setWmText(''); setWmTextByPage(new Map()); },
-      redact: () => setRedactions(new Map()),
-      crop: () => setCropMap(new Map()),
-      resize: () => setResizeEnabled(false),
-      compress: () => setCompressEnabled(false),
-      metadata: () => { setMetaTitle(''); setMetaAuthor(''); setMetaSubject(''); setMetaKeywords(''); },
-      annotations: () => setAnnotationsMap(new Map()),
-      split: () => { setSplitGroups([[]]); setActiveSplitGroup(0); },
-    };
-    clearMap[type]?.();
-  }, [setPages, setEditQueue, setRedactions, setCropMap, setAnnotationsMap, setSplitGroups]);
+    // Coalesce the queue removal + corresponding setting clears into ONE history entry.
+    editorHistory.beginCoalesce();
+    try {
+      editorHistory.set(prev => {
+        const next: EditorSnapshot = { ...prev, editQueue: prev.editQueue.filter(item => item.type !== type) };
+        switch (type) {
+          case 'rotate': next.pages = prev.pages.map(p => ({ ...p, rotation: 0 })); break;
+          case 'pageNumbers': next.pnEnabled = false; break;
+          case 'watermark': next.wmEnabled = false; next.wmText = ''; next.wmTextByPage = new Map(); break;
+          case 'redact': next.redactions = new Map(); break;
+          case 'crop': next.cropMap = new Map(); break;
+          case 'resize': next.resizeEnabled = false; break;
+          case 'compress': next.compressEnabled = false; break;
+          case 'metadata': next.metaTitle = ''; next.metaAuthor = ''; next.metaSubject = ''; next.metaKeywords = ''; break;
+          case 'annotations': next.annotationsMap = new Map(); break;
+          case 'split': next.splitGroups = [[]]; break;
+        }
+        return next;
+      });
+    } finally {
+      editorHistory.endCoalesce();
+    }
+    if (type === 'split') setActiveSplitGroup(0);
+  }, [editorHistory]);
 
   const reorderQueue = useCallback((fromIdx: number, toIdx: number) => {
     if (fromIdx === toIdx) return;
