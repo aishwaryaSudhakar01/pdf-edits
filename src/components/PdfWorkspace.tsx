@@ -915,7 +915,7 @@ const PdfWorkspace = () => {
     const allDone = isProcessing && processingState.steps.every(s => s.status === 'done');
 
     // Map step type → its display step in processingState (sequential indices match queueSteps order)
-    const statusFor = (type: QueueStepType): 'pending' | 'active' | 'done' | 'error' | null => {
+    const statusFor = (type: QueueStepType): 'pending' | 'active' | 'done' | 'error' | 'skipped' | null => {
       if (!processingState) return null;
       const found = processingState.steps.find(s => s && s.type === type);
       return found?.status ?? null;
