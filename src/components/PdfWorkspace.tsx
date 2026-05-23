@@ -1704,21 +1704,21 @@ const PdfWorkspace = () => {
                   <div className="flex gap-4 flex-wrap">
                     <div className="flex-1 min-w-[140px]">
                       <span className="text-xs font-medium mb-2 block">Title</span>
-                      <Input value={metaTitle} onChange={e => setMetaTitle(e.target.value)} placeholder="Document title" className="h-8" />
+                      <Input value={metaTitle} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => setMetaTitle(e.target.value)} placeholder="Document title" className="h-8" />
                     </div>
                     <div className="flex-1 min-w-[140px]">
                       <span className="text-xs font-medium mb-2 block">Author</span>
-                      <Input value={metaAuthor} onChange={e => setMetaAuthor(e.target.value)} placeholder="Author name" className="h-8" />
+                      <Input value={metaAuthor} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => setMetaAuthor(e.target.value)} placeholder="Author name" className="h-8" />
                     </div>
                   </div>
                   <div className="flex gap-4 flex-wrap">
                     <div className="flex-1 min-w-[140px]">
                       <span className="text-xs font-medium mb-2 block">Subject</span>
-                      <Input value={metaSubject} onChange={e => setMetaSubject(e.target.value)} placeholder="Document subject" className="h-8" />
+                      <Input value={metaSubject} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => setMetaSubject(e.target.value)} placeholder="Document subject" className="h-8" />
                     </div>
                     <div className="flex-1 min-w-[140px]">
                       <span className="text-xs font-medium mb-2 block">Keywords (comma-separated)</span>
-                      <Input value={metaKeywords} onChange={e => setMetaKeywords(e.target.value)} placeholder="pdf, report, 2024" className="h-8" />
+                      <Input value={metaKeywords} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => setMetaKeywords(e.target.value)} placeholder="pdf, report, 2024" className="h-8" />
                     </div>
                   </div>
                   {hasMetadata && <p className="text-muted-foreground text-sm">✓ Metadata will be embedded on download</p>}
