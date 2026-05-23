@@ -1135,6 +1135,7 @@ const PdfWorkspace = () => {
             {hasError && (
               <>
                 <Button variant="secondary" size="compact" onClick={() => setProcessingState(null)}>Cancel</Button>
+                <Button variant="tertiary" size="compact" onClick={handleSkipFailed}>Skip</Button>
                 <Button variant="positive" size="compact" onClick={handleRetryFromFailed}>Retry</Button>
               </>
             )}
