@@ -855,6 +855,19 @@ const PdfWorkspace = () => {
     handleDownload(processingState.failedIndex);
   };
 
+  const handleSkipFailed = () => {
+    if (!processingState || processingState.failedIndex === null) return;
+    const failed = processingState.failedIndex;
+    // Mark as skipped (visible state, not silent omission) and resume after it.
+    setProcessingState(prev => {
+      if (!prev) return prev;
+      const steps = [...prev.steps];
+      steps[failed] = { ...steps[failed], status: 'skipped', error: undefined };
+      return { ...prev, steps, failedIndex: null };
+    });
+    handleDownload(failed + 1);
+  };
+
   /* ── Standalone tool actions ──────────────────── */
   const handleImageToPdf = async () => {
     if (uploadedImages.length === 0) return;
