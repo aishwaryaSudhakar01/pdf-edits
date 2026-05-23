@@ -1082,6 +1082,9 @@ const PdfWorkspace = () => {
                   {status === 'pending' && (
                     <Clock size={14} className="text-muted-foreground/60 shrink-0" aria-label="queued" />
                   )}
+                  {status === 'skipped' && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border border-border rounded px-1.5 py-px shrink-0" aria-label="skipped">Skipped</span>
+                  )}
 
                   {!isOrganize && !isProcessing && (
                     <button
