@@ -175,6 +175,32 @@ interface EditorSnapshot {
   cropMap: Map<number, CropValues>;
   splitGroups: string[][];
   editQueue: QueueItem[];
+  // Page numbers
+  pnEnabled: boolean;
+  pnPosition: string;
+  pnFontSize: number;
+  pnStart: string;
+  // Watermark
+  wmEnabled: boolean;
+  wmText: string;
+  wmTextByPage: Map<number, string>;
+  wmOpacity: number;
+  wmFontSize: number;
+  wmAngle: number;
+  wmPages: Set<number>;
+  // Resize
+  resizeEnabled: boolean;
+  resizePreset: number;
+  customW: string;
+  customH: string;
+  // Compress
+  compressEnabled: boolean;
+  quality: number;
+  // Metadata
+  metaTitle: string;
+  metaAuthor: string;
+  metaSubject: string;
+  metaKeywords: string;
 }
 
 const emptySnapshot = (): EditorSnapshot => ({
@@ -184,6 +210,11 @@ const emptySnapshot = (): EditorSnapshot => ({
   cropMap: new Map(),
   splitGroups: [[]],
   editQueue: [],
+  pnEnabled: false, pnPosition: 'bottom-center', pnFontSize: 12, pnStart: '1',
+  wmEnabled: false, wmText: '', wmTextByPage: new Map(), wmOpacity: 30, wmFontSize: 48, wmAngle: -45, wmPages: new Set(),
+  resizeEnabled: false, resizePreset: 0, customW: '612', customH: '792',
+  compressEnabled: false, quality: 70,
+  metaTitle: '', metaAuthor: '', metaSubject: '', metaKeywords: '',
 });
 
 const PdfWorkspace = () => {
@@ -191,16 +222,23 @@ const PdfWorkspace = () => {
   const [sources, setSources] = useState<Map<string, SourceFile>>(new Map());
 
   // ── Unified editor history (single Cmd+Z stack) ──
-  // Per-field shallow equality: every snapshot field is either an immutable
-  // primitive/array or a clone-on-write Map/Uint8Array, so reference equality
-  // is correct AND cheap. We never recurse into Maps or Uint8Arrays.
+  // Per-field shallow equality. Every field is either a primitive, a clone-on-write
+  // Map/Set, or a clone-on-write array. Reference equality is correct AND cheap.
+  // We never recurse into Maps/Sets/Uint8Arrays.
   const snapshotEquals = useCallback((a: EditorSnapshot, b: EditorSnapshot) =>
     a.pages === b.pages
     && a.annotationsMap === b.annotationsMap
     && a.redactions === b.redactions
     && a.cropMap === b.cropMap
     && a.splitGroups === b.splitGroups
-    && a.editQueue === b.editQueue, []);
+    && a.editQueue === b.editQueue
+    && a.pnEnabled === b.pnEnabled && a.pnPosition === b.pnPosition && a.pnFontSize === b.pnFontSize && a.pnStart === b.pnStart
+    && a.wmEnabled === b.wmEnabled && a.wmText === b.wmText && a.wmTextByPage === b.wmTextByPage
+    && a.wmOpacity === b.wmOpacity && a.wmFontSize === b.wmFontSize && a.wmAngle === b.wmAngle && a.wmPages === b.wmPages
+    && a.resizeEnabled === b.resizeEnabled && a.resizePreset === b.resizePreset && a.customW === b.customW && a.customH === b.customH
+    && a.compressEnabled === b.compressEnabled && a.quality === b.quality
+    && a.metaTitle === b.metaTitle && a.metaAuthor === b.metaAuthor && a.metaSubject === b.metaSubject && a.metaKeywords === b.metaKeywords
+  , []);
   const editorHistory = useHistory<EditorSnapshot>(emptySnapshot(), 30, snapshotEquals);
   const editor = editorHistory.current;
   const pages = editor.pages;
@@ -209,31 +247,84 @@ const PdfWorkspace = () => {
   const cropMap = editor.cropMap;
   const splitGroups = editor.splitGroups;
   const editQueue = editor.editQueue;
+  const pnEnabled = editor.pnEnabled, pnPosition = editor.pnPosition, pnFontSize = editor.pnFontSize, pnStart = editor.pnStart;
+  const wmEnabled = editor.wmEnabled, wmText = editor.wmText, wmTextByPage = editor.wmTextByPage;
+  const wmOpacity = editor.wmOpacity, wmFontSize = editor.wmFontSize, wmAngle = editor.wmAngle, wmPages = editor.wmPages;
+  const resizeEnabled = editor.resizeEnabled, resizePreset = editor.resizePreset, customW = editor.customW, customH = editor.customH;
+  const compressEnabled = editor.compressEnabled, quality = editor.quality;
+  const metaTitle = editor.metaTitle, metaAuthor = editor.metaAuthor, metaSubject = editor.metaSubject, metaKeywords = editor.metaKeywords;
 
-  // Setter wrappers — every Map setter clones-on-write so prior history snapshots stay intact.
-  const setPages = useCallback((val: PageItem[] | ((prev: PageItem[]) => PageItem[])) => {
-    editorHistory.set(prev => ({ ...prev, pages: typeof val === 'function' ? (val as (p: PageItem[]) => PageItem[])(prev.pages) : val }));
+  // Generic field setter factory. Returns a setter that pushes ONE history entry per call.
+  // Maps/Sets must be replaced with NEW instances by callers — never mutated in place.
+  type FieldSetter<K extends keyof EditorSnapshot> = (val: EditorSnapshot[K] | ((p: EditorSnapshot[K]) => EditorSnapshot[K])) => void;
+  const makeSet = useCallback(<K extends keyof EditorSnapshot>(key: K): FieldSetter<K> =>
+    (val) => {
+      editorHistory.set(prev => ({
+        ...prev,
+        [key]: typeof val === 'function' ? (val as (p: EditorSnapshot[K]) => EditorSnapshot[K])(prev[key]) : val,
+      }));
+    }, [editorHistory]);
+  // Non-history version — for incidental sync (mount effects, derived auto-adds).
+  const makeUpdate = useCallback(<K extends keyof EditorSnapshot>(key: K): FieldSetter<K> =>
+    (val) => {
+      editorHistory.update(prev => ({
+        ...prev,
+        [key]: typeof val === 'function' ? (val as (p: EditorSnapshot[K]) => EditorSnapshot[K])(prev[key]) : val,
+      }));
+    }, [editorHistory]);
+
+  // Setters — every Map/Set setter must clone-on-write at the call site; never mutate.
+  const setPages = useMemo(() => makeSet('pages'), [makeSet]);
+  const setAnnotationsMap = useMemo(() => makeSet('annotationsMap'), [makeSet]);
+  const setRedactions = useMemo(() => makeSet('redactions'), [makeSet]);
+  const setCropMap = useMemo(() => makeSet('cropMap'), [makeSet]);
+  const setSplitGroups = useMemo(() => makeSet('splitGroups'), [makeSet]);
+  const setEditQueue = useMemo(() => makeSet('editQueue'), [makeSet]);
+  const updateEditQueue = useMemo(() => makeUpdate('editQueue'), [makeUpdate]);
+  const setPnEnabled = useMemo(() => makeSet('pnEnabled'), [makeSet]);
+  const setPnPosition = useMemo(() => makeSet('pnPosition'), [makeSet]);
+  const setPnFontSize = useMemo(() => makeSet('pnFontSize'), [makeSet]);
+  const setPnStart = useMemo(() => makeSet('pnStart'), [makeSet]);
+  const setWmEnabled = useMemo(() => makeSet('wmEnabled'), [makeSet]);
+  const setWmText = useMemo(() => makeSet('wmText'), [makeSet]);
+  const setWmTextByPage = useMemo(() => makeSet('wmTextByPage'), [makeSet]);
+  const setWmOpacity = useMemo(() => makeSet('wmOpacity'), [makeSet]);
+  const setWmFontSize = useMemo(() => makeSet('wmFontSize'), [makeSet]);
+  const setWmAngle = useMemo(() => makeSet('wmAngle'), [makeSet]);
+  const setWmPages = useMemo(() => makeSet('wmPages'), [makeSet]);
+  const setResizeEnabled = useMemo(() => makeSet('resizeEnabled'), [makeSet]);
+  const setResizePreset = useMemo(() => makeSet('resizePreset'), [makeSet]);
+  const setCustomW = useMemo(() => makeSet('customW'), [makeSet]);
+  const setCustomH = useMemo(() => makeSet('customH'), [makeSet]);
+  const setCompressEnabled = useMemo(() => makeSet('compressEnabled'), [makeSet]);
+  const setQuality = useMemo(() => makeSet('quality'), [makeSet]);
+  const setMetaTitle = useMemo(() => makeSet('metaTitle'), [makeSet]);
+  const setMetaAuthor = useMemo(() => makeSet('metaAuthor'), [makeSet]);
+  const setMetaSubject = useMemo(() => makeSet('metaSubject'), [makeSet]);
+  const setMetaKeywords = useMemo(() => makeSet('metaKeywords'), [makeSet]);
+
+  // ── Coalescing helpers ──
+  // One undo entry per continuous slider drag or text-input editing session.
+  // Begin on first onValueChange / focus, end on onValueCommit / blur.
+  const coalescingRef = useRef(false);
+  const beginCoalesceOnce = useCallback(() => {
+    if (!coalescingRef.current) {
+      coalescingRef.current = true;
+      editorHistory.beginCoalesce();
+    }
   }, [editorHistory]);
-  const setAnnotationsMap = useCallback((val: Map<number, Annotation[]> | ((prev: Map<number, Annotation[]>) => Map<number, Annotation[]>)) => {
-    editorHistory.set(prev => ({ ...prev, annotationsMap: typeof val === 'function' ? (val as (p: Map<number, Annotation[]>) => Map<number, Annotation[]>)(prev.annotationsMap) : val }));
+  const endCoalesce = useCallback(() => {
+    if (coalescingRef.current) {
+      coalescingRef.current = false;
+      editorHistory.endCoalesce();
+    }
   }, [editorHistory]);
-  const setRedactions = useCallback((val: Map<number, RedactRect[]> | ((prev: Map<number, RedactRect[]>) => Map<number, RedactRect[]>)) => {
-    editorHistory.set(prev => ({ ...prev, redactions: typeof val === 'function' ? (val as (p: Map<number, RedactRect[]>) => Map<number, RedactRect[]>)(prev.redactions) : val }));
-  }, [editorHistory]);
-  const setCropMap = useCallback((val: Map<number, CropValues> | ((prev: Map<number, CropValues>) => Map<number, CropValues>)) => {
-    editorHistory.set(prev => ({ ...prev, cropMap: typeof val === 'function' ? (val as (p: Map<number, CropValues>) => Map<number, CropValues>)(prev.cropMap) : val }));
-  }, [editorHistory]);
-  const setSplitGroups = useCallback((val: string[][] | ((prev: string[][]) => string[][])) => {
-    editorHistory.set(prev => ({ ...prev, splitGroups: typeof val === 'function' ? (val as (p: string[][]) => string[][])(prev.splitGroups) : val }));
-  }, [editorHistory]);
-  const setEditQueue = useCallback((val: QueueItem[] | ((prev: QueueItem[]) => QueueItem[])) => {
-    editorHistory.set(prev => ({ ...prev, editQueue: typeof val === 'function' ? (val as (p: QueueItem[]) => QueueItem[])(prev.editQueue) : val }));
-  }, [editorHistory]);
-  // Non-history version — for incidental sync (e.g. auto-add to queue from useEffect) we
-  // don't want to push history entries the user didn't make consciously.
-  const updateEditQueue = useCallback((val: QueueItem[] | ((prev: QueueItem[]) => QueueItem[])) => {
-    editorHistory.update(prev => ({ ...prev, editQueue: typeof val === 'function' ? (val as (p: QueueItem[]) => QueueItem[])(prev.editQueue) : val }));
-  }, [editorHistory]);
+  // Wraps a slider's onValueChange so it begins coalescing on first call of the drag.
+  const slideChange = useCallback(<V,>(handler: (v: V) => void) => (v: V) => {
+    beginCoalesceOnce();
+    handler(v);
+  }, [beginCoalesceOnce]);
+
 
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
   const [activeTool, setActiveTool] = useState<ToolType>('organize');
