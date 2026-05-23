@@ -100,7 +100,7 @@ const ToolbarTooltip = ({ content, children }: { content: string; children: Reac
 
 /* ── Processing Overlay ────────────────────────── */
 interface ProcessingState {
-  steps: { type: QueueStepType; label: string; status: 'pending' | 'active' | 'done' | 'error'; error?: string }[];
+  steps: { type: QueueStepType; label: string; status: 'pending' | 'active' | 'done' | 'error' | 'skipped'; error?: string }[];
   failedIndex: number | null;
 }
 
