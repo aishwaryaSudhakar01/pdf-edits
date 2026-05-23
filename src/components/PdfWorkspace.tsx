@@ -1660,9 +1660,9 @@ const PdfWorkspace = () => {
                     <Button variant={resizePreset === -1 ? 'default' : 'secondary'} size="mini" onClick={() => { setResizePreset(-1); setResizeEnabled(true); }}>Custom</Button>
                     {resizePreset === -1 && (
                       <div className="flex gap-2 items-center">
-                        <Input type="number" value={customW} onChange={e => setCustomW(e.target.value)} className="w-20 h-7 text-xs" />
+                        <Input type="number" value={customW} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => setCustomW(e.target.value)} className="w-20 h-7 text-xs" />
                         <span className="text-xs font-medium">×</span>
-                        <Input type="number" value={customH} onChange={e => setCustomH(e.target.value)} className="w-20 h-7 text-xs" />
+                        <Input type="number" value={customH} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => setCustomH(e.target.value)} className="w-20 h-7 text-xs" />
                         <span className="text-muted-foreground text-xs">pts</span>
                       </div>
                     )}
