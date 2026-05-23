@@ -973,7 +973,7 @@ const PdfWorkspace = () => {
   /* ── Vertical chain panel (cards) ─────────────────────── */
   const renderQueueTrail = () => {
     if (editQueue.length === 0) return null;
-    const ambiguities = detectQueueAmbiguities(editQueue);
+    const ambiguities = detectQueueAmbiguities(editQueue, { pageNumbers: pnEnabled, watermark: wmEnabled, compress: compressEnabled });
     const isProcessing = !!processingState;
     const hasError = isProcessing && processingState.failedIndex !== null;
     const allDone = isProcessing && processingState.steps.every(s => s.status === 'done');
