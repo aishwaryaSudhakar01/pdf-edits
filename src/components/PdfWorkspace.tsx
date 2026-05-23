@@ -347,8 +347,7 @@ const PdfWorkspace = () => {
   // Processing
   const [processing, setProcessing] = useState(false);
 
-  // Compress
-  const [quality, setQuality] = useState(70);
+  // Compress preview (UI-only, not history)
   const [compressedSize, setCompressedSize] = useState(0);
   const [compressedBlob, setCompressedBlob] = useState<Blob | null>(null);
 
@@ -384,42 +383,16 @@ const PdfWorkspace = () => {
   }, [getSplitGroupColor]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Split
+  // Split (text input — not history-tracked)
   const [splitRanges, setSplitRanges] = useState('');
 
-  // Page Numbers
-  const [pnEnabled, setPnEnabled] = useState(false);
-  const [pnPosition, setPnPosition] = useState('bottom-center');
-  const [pnFontSize, setPnFontSize] = useState(12);
-  const [pnStart, setPnStart] = useState('1');
-
-  // Watermark
-  const [wmEnabled, setWmEnabled] = useState(false);
+  // Watermark draft mirror (incidental UI state — not history-tracked)
   const [wmDraft, setWmDraft] = useState('CONFIDENTIAL');
-  const [wmText, setWmText] = useState('');
-  const [wmTextByPage, setWmTextByPage] = useState<Map<number, string>>(new Map());
-  const [wmOpacity, setWmOpacity] = useState(30);
-  const [wmFontSize, setWmFontSize] = useState(48);
-  const [wmPages, setWmPages] = useState<Set<number>>(new Set());
-  const [wmAngle, setWmAngle] = useState(-45);
 
-  // Redact
-  // Redact — redactions Map lives in editorHistory
+  // Redact / Crop overlay UI
   const [redactPageIdx, setRedactPageIdx] = useState<number | null>(null);
-
-  // Crop
-  // Crop — cropMap lives in editorHistory
   const [cropPageIdx, setCropPageIdx] = useState<number | null>(null);
   const cropEnabled = cropMap.size > 0;
-
-  // Resize
-  const [resizeEnabled, setResizeEnabled] = useState(false);
-  const [resizePreset, setResizePreset] = useState(0);
-  const [customW, setCustomW] = useState('612');
-  const [customH, setCustomH] = useState('792');
-
-  // Compress
-  const [compressEnabled, setCompressEnabled] = useState(false);
 
   // Image→PDF
   const [uploadedImages, setUploadedImages] = useState<ImageFile[]>([]);
@@ -427,11 +400,6 @@ const PdfWorkspace = () => {
   // PDF→Image
   const [exportFormat, setExportFormat] = useState<'png' | 'jpg'>('png');
 
-  // Metadata
-  const [metaTitle, setMetaTitle] = useState('');
-  const [metaAuthor, setMetaAuthor] = useState('');
-  const [metaSubject, setMetaSubject] = useState('');
-  const [metaKeywords, setMetaKeywords] = useState('');
 
   // Annotations
   // Annotations — annotationsMap lives in editorHistory
