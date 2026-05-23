@@ -159,13 +159,25 @@ export interface QueueAmbiguity {
 
 const VECTOR_OPS: QueueStepType[] = ['annotations', 'watermark', 'pageNumbers', 'redact', 'crop', 'metadata', 'rotate'];
 
-export function detectQueueAmbiguities(queue: QueueItem[]): QueueAmbiguity[] {
+export interface AmbiguityEnabledFlags {
+  pageNumbers: boolean;
+  watermark: boolean;
+  compress: boolean;
+}
+
+export function detectQueueAmbiguities(
+  queue: QueueItem[],
+  enabled: AmbiguityEnabledFlags = { pageNumbers: true, watermark: true, compress: true },
+): QueueAmbiguity[] {
   const out: QueueAmbiguity[] = [];
   const indexOf = (t: QueueStepType) => queue.findIndex(q => q.type === t);
 
   const split = indexOf('split');
   if (split >= 0) {
-    for (const before of ['pageNumbers', 'watermark', 'compress'] as QueueStepType[]) {
+    for (const before of ['pageNumbers', 'watermark', 'compress'] as const) {
+      // Skip ops that are queued but currently disabled — they won't actually run,
+      // so warning the user about their order would be a false alarm.
+      if (!enabled[before]) continue;
       const i = indexOf(before);
       if (i < 0) continue;
       const later = i > split ? queue[i] : queue[split];

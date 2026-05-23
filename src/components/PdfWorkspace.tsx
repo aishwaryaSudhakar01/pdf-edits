@@ -25,7 +25,7 @@ import {
   PdfOpError,
 } from '../lib/pdf-utils';
 import { useHistory } from '../lib/useHistory';
-import { preflightQueue, detectQueueAmbiguities, assertNonEmpty, assertSinglePdfPageCount, type PreflightIssue, type QueueAmbiguity } from '../lib/queue-runner';
+import { preflightQueue, detectQueueAmbiguities, assertNonEmpty, assertSinglePdfPageCount, type PreflightIssue, type QueueAmbiguity, type AmbiguityEnabledFlags } from '../lib/queue-runner';
 
 if (typeof window !== 'undefined') { pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`; }
 
@@ -100,7 +100,7 @@ const ToolbarTooltip = ({ content, children }: { content: string; children: Reac
 
 /* ── Processing Overlay ────────────────────────── */
 interface ProcessingState {
-  steps: { type: QueueStepType; label: string; status: 'pending' | 'active' | 'done' | 'error'; error?: string }[];
+  steps: { type: QueueStepType; label: string; status: 'pending' | 'active' | 'done' | 'error' | 'skipped'; error?: string }[];
   failedIndex: number | null;
 }
 
@@ -175,6 +175,32 @@ interface EditorSnapshot {
   cropMap: Map<number, CropValues>;
   splitGroups: string[][];
   editQueue: QueueItem[];
+  // Page numbers
+  pnEnabled: boolean;
+  pnPosition: string;
+  pnFontSize: number;
+  pnStart: string;
+  // Watermark
+  wmEnabled: boolean;
+  wmText: string;
+  wmTextByPage: Map<number, string>;
+  wmOpacity: number;
+  wmFontSize: number;
+  wmAngle: number;
+  wmPages: Set<number>;
+  // Resize
+  resizeEnabled: boolean;
+  resizePreset: number;
+  customW: string;
+  customH: string;
+  // Compress
+  compressEnabled: boolean;
+  quality: number;
+  // Metadata
+  metaTitle: string;
+  metaAuthor: string;
+  metaSubject: string;
+  metaKeywords: string;
 }
 
 const emptySnapshot = (): EditorSnapshot => ({
@@ -184,6 +210,11 @@ const emptySnapshot = (): EditorSnapshot => ({
   cropMap: new Map(),
   splitGroups: [[]],
   editQueue: [],
+  pnEnabled: false, pnPosition: 'bottom-center', pnFontSize: 12, pnStart: '1',
+  wmEnabled: false, wmText: '', wmTextByPage: new Map(), wmOpacity: 30, wmFontSize: 48, wmAngle: -45, wmPages: new Set(),
+  resizeEnabled: false, resizePreset: 0, customW: '612', customH: '792',
+  compressEnabled: false, quality: 70,
+  metaTitle: '', metaAuthor: '', metaSubject: '', metaKeywords: '',
 });
 
 const PdfWorkspace = () => {
@@ -191,16 +222,23 @@ const PdfWorkspace = () => {
   const [sources, setSources] = useState<Map<string, SourceFile>>(new Map());
 
   // ── Unified editor history (single Cmd+Z stack) ──
-  // Per-field shallow equality: every snapshot field is either an immutable
-  // primitive/array or a clone-on-write Map/Uint8Array, so reference equality
-  // is correct AND cheap. We never recurse into Maps or Uint8Arrays.
+  // Per-field shallow equality. Every field is either a primitive, a clone-on-write
+  // Map/Set, or a clone-on-write array. Reference equality is correct AND cheap.
+  // We never recurse into Maps/Sets/Uint8Arrays.
   const snapshotEquals = useCallback((a: EditorSnapshot, b: EditorSnapshot) =>
     a.pages === b.pages
     && a.annotationsMap === b.annotationsMap
     && a.redactions === b.redactions
     && a.cropMap === b.cropMap
     && a.splitGroups === b.splitGroups
-    && a.editQueue === b.editQueue, []);
+    && a.editQueue === b.editQueue
+    && a.pnEnabled === b.pnEnabled && a.pnPosition === b.pnPosition && a.pnFontSize === b.pnFontSize && a.pnStart === b.pnStart
+    && a.wmEnabled === b.wmEnabled && a.wmText === b.wmText && a.wmTextByPage === b.wmTextByPage
+    && a.wmOpacity === b.wmOpacity && a.wmFontSize === b.wmFontSize && a.wmAngle === b.wmAngle && a.wmPages === b.wmPages
+    && a.resizeEnabled === b.resizeEnabled && a.resizePreset === b.resizePreset && a.customW === b.customW && a.customH === b.customH
+    && a.compressEnabled === b.compressEnabled && a.quality === b.quality
+    && a.metaTitle === b.metaTitle && a.metaAuthor === b.metaAuthor && a.metaSubject === b.metaSubject && a.metaKeywords === b.metaKeywords
+  , []);
   const editorHistory = useHistory<EditorSnapshot>(emptySnapshot(), 30, snapshotEquals);
   const editor = editorHistory.current;
   const pages = editor.pages;
@@ -209,31 +247,84 @@ const PdfWorkspace = () => {
   const cropMap = editor.cropMap;
   const splitGroups = editor.splitGroups;
   const editQueue = editor.editQueue;
+  const pnEnabled = editor.pnEnabled, pnPosition = editor.pnPosition, pnFontSize = editor.pnFontSize, pnStart = editor.pnStart;
+  const wmEnabled = editor.wmEnabled, wmText = editor.wmText, wmTextByPage = editor.wmTextByPage;
+  const wmOpacity = editor.wmOpacity, wmFontSize = editor.wmFontSize, wmAngle = editor.wmAngle, wmPages = editor.wmPages;
+  const resizeEnabled = editor.resizeEnabled, resizePreset = editor.resizePreset, customW = editor.customW, customH = editor.customH;
+  const compressEnabled = editor.compressEnabled, quality = editor.quality;
+  const metaTitle = editor.metaTitle, metaAuthor = editor.metaAuthor, metaSubject = editor.metaSubject, metaKeywords = editor.metaKeywords;
 
-  // Setter wrappers — every Map setter clones-on-write so prior history snapshots stay intact.
-  const setPages = useCallback((val: PageItem[] | ((prev: PageItem[]) => PageItem[])) => {
-    editorHistory.set(prev => ({ ...prev, pages: typeof val === 'function' ? (val as (p: PageItem[]) => PageItem[])(prev.pages) : val }));
+  // Generic field setter factory. Returns a setter that pushes ONE history entry per call.
+  // Maps/Sets must be replaced with NEW instances by callers — never mutated in place.
+  type FieldSetter<K extends keyof EditorSnapshot> = (val: EditorSnapshot[K] | ((p: EditorSnapshot[K]) => EditorSnapshot[K])) => void;
+  const makeSet = useCallback(<K extends keyof EditorSnapshot>(key: K): FieldSetter<K> =>
+    (val) => {
+      editorHistory.set(prev => ({
+        ...prev,
+        [key]: typeof val === 'function' ? (val as (p: EditorSnapshot[K]) => EditorSnapshot[K])(prev[key]) : val,
+      }));
+    }, [editorHistory]);
+  // Non-history version — for incidental sync (mount effects, derived auto-adds).
+  const makeUpdate = useCallback(<K extends keyof EditorSnapshot>(key: K): FieldSetter<K> =>
+    (val) => {
+      editorHistory.update(prev => ({
+        ...prev,
+        [key]: typeof val === 'function' ? (val as (p: EditorSnapshot[K]) => EditorSnapshot[K])(prev[key]) : val,
+      }));
+    }, [editorHistory]);
+
+  // Setters — every Map/Set setter must clone-on-write at the call site; never mutate.
+  const setPages = useMemo(() => makeSet('pages'), [makeSet]);
+  const setAnnotationsMap = useMemo(() => makeSet('annotationsMap'), [makeSet]);
+  const setRedactions = useMemo(() => makeSet('redactions'), [makeSet]);
+  const setCropMap = useMemo(() => makeSet('cropMap'), [makeSet]);
+  const setSplitGroups = useMemo(() => makeSet('splitGroups'), [makeSet]);
+  const setEditQueue = useMemo(() => makeSet('editQueue'), [makeSet]);
+  const updateEditQueue = useMemo(() => makeUpdate('editQueue'), [makeUpdate]);
+  const setPnEnabled = useMemo(() => makeSet('pnEnabled'), [makeSet]);
+  const setPnPosition = useMemo(() => makeSet('pnPosition'), [makeSet]);
+  const setPnFontSize = useMemo(() => makeSet('pnFontSize'), [makeSet]);
+  const setPnStart = useMemo(() => makeSet('pnStart'), [makeSet]);
+  const setWmEnabled = useMemo(() => makeSet('wmEnabled'), [makeSet]);
+  const setWmText = useMemo(() => makeSet('wmText'), [makeSet]);
+  const setWmTextByPage = useMemo(() => makeSet('wmTextByPage'), [makeSet]);
+  const setWmOpacity = useMemo(() => makeSet('wmOpacity'), [makeSet]);
+  const setWmFontSize = useMemo(() => makeSet('wmFontSize'), [makeSet]);
+  const setWmAngle = useMemo(() => makeSet('wmAngle'), [makeSet]);
+  const setWmPages = useMemo(() => makeSet('wmPages'), [makeSet]);
+  const setResizeEnabled = useMemo(() => makeSet('resizeEnabled'), [makeSet]);
+  const setResizePreset = useMemo(() => makeSet('resizePreset'), [makeSet]);
+  const setCustomW = useMemo(() => makeSet('customW'), [makeSet]);
+  const setCustomH = useMemo(() => makeSet('customH'), [makeSet]);
+  const setCompressEnabled = useMemo(() => makeSet('compressEnabled'), [makeSet]);
+  const setQuality = useMemo(() => makeSet('quality'), [makeSet]);
+  const setMetaTitle = useMemo(() => makeSet('metaTitle'), [makeSet]);
+  const setMetaAuthor = useMemo(() => makeSet('metaAuthor'), [makeSet]);
+  const setMetaSubject = useMemo(() => makeSet('metaSubject'), [makeSet]);
+  const setMetaKeywords = useMemo(() => makeSet('metaKeywords'), [makeSet]);
+
+  // ── Coalescing helpers ──
+  // One undo entry per continuous slider drag or text-input editing session.
+  // Begin on first onValueChange / focus, end on onValueCommit / blur.
+  const coalescingRef = useRef(false);
+  const beginCoalesceOnce = useCallback(() => {
+    if (!coalescingRef.current) {
+      coalescingRef.current = true;
+      editorHistory.beginCoalesce();
+    }
   }, [editorHistory]);
-  const setAnnotationsMap = useCallback((val: Map<number, Annotation[]> | ((prev: Map<number, Annotation[]>) => Map<number, Annotation[]>)) => {
-    editorHistory.set(prev => ({ ...prev, annotationsMap: typeof val === 'function' ? (val as (p: Map<number, Annotation[]>) => Map<number, Annotation[]>)(prev.annotationsMap) : val }));
+  const endCoalesce = useCallback(() => {
+    if (coalescingRef.current) {
+      coalescingRef.current = false;
+      editorHistory.endCoalesce();
+    }
   }, [editorHistory]);
-  const setRedactions = useCallback((val: Map<number, RedactRect[]> | ((prev: Map<number, RedactRect[]>) => Map<number, RedactRect[]>)) => {
-    editorHistory.set(prev => ({ ...prev, redactions: typeof val === 'function' ? (val as (p: Map<number, RedactRect[]>) => Map<number, RedactRect[]>)(prev.redactions) : val }));
-  }, [editorHistory]);
-  const setCropMap = useCallback((val: Map<number, CropValues> | ((prev: Map<number, CropValues>) => Map<number, CropValues>)) => {
-    editorHistory.set(prev => ({ ...prev, cropMap: typeof val === 'function' ? (val as (p: Map<number, CropValues>) => Map<number, CropValues>)(prev.cropMap) : val }));
-  }, [editorHistory]);
-  const setSplitGroups = useCallback((val: string[][] | ((prev: string[][]) => string[][])) => {
-    editorHistory.set(prev => ({ ...prev, splitGroups: typeof val === 'function' ? (val as (p: string[][]) => string[][])(prev.splitGroups) : val }));
-  }, [editorHistory]);
-  const setEditQueue = useCallback((val: QueueItem[] | ((prev: QueueItem[]) => QueueItem[])) => {
-    editorHistory.set(prev => ({ ...prev, editQueue: typeof val === 'function' ? (val as (p: QueueItem[]) => QueueItem[])(prev.editQueue) : val }));
-  }, [editorHistory]);
-  // Non-history version — for incidental sync (e.g. auto-add to queue from useEffect) we
-  // don't want to push history entries the user didn't make consciously.
-  const updateEditQueue = useCallback((val: QueueItem[] | ((prev: QueueItem[]) => QueueItem[])) => {
-    editorHistory.update(prev => ({ ...prev, editQueue: typeof val === 'function' ? (val as (p: QueueItem[]) => QueueItem[])(prev.editQueue) : val }));
-  }, [editorHistory]);
+  // Wraps a slider's onValueChange so it begins coalescing on first call of the drag.
+  const slideChange = useCallback(<V,>(handler: (v: V) => void) => (v: V) => {
+    beginCoalesceOnce();
+    handler(v);
+  }, [beginCoalesceOnce]);
+
 
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
   const [activeTool, setActiveTool] = useState<ToolType>('organize');
@@ -256,8 +347,7 @@ const PdfWorkspace = () => {
   // Processing
   const [processing, setProcessing] = useState(false);
 
-  // Compress
-  const [quality, setQuality] = useState(70);
+  // Compress preview (UI-only, not history)
   const [compressedSize, setCompressedSize] = useState(0);
   const [compressedBlob, setCompressedBlob] = useState<Blob | null>(null);
 
@@ -293,42 +383,16 @@ const PdfWorkspace = () => {
   }, [getSplitGroupColor]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Split
+  // Split (text input — not history-tracked)
   const [splitRanges, setSplitRanges] = useState('');
 
-  // Page Numbers
-  const [pnEnabled, setPnEnabled] = useState(false);
-  const [pnPosition, setPnPosition] = useState('bottom-center');
-  const [pnFontSize, setPnFontSize] = useState(12);
-  const [pnStart, setPnStart] = useState('1');
-
-  // Watermark
-  const [wmEnabled, setWmEnabled] = useState(false);
+  // Watermark draft mirror (incidental UI state — not history-tracked)
   const [wmDraft, setWmDraft] = useState('CONFIDENTIAL');
-  const [wmText, setWmText] = useState('');
-  const [wmTextByPage, setWmTextByPage] = useState<Map<number, string>>(new Map());
-  const [wmOpacity, setWmOpacity] = useState(30);
-  const [wmFontSize, setWmFontSize] = useState(48);
-  const [wmPages, setWmPages] = useState<Set<number>>(new Set());
-  const [wmAngle, setWmAngle] = useState(-45);
 
-  // Redact
-  // Redact — redactions Map lives in editorHistory
+  // Redact / Crop overlay UI
   const [redactPageIdx, setRedactPageIdx] = useState<number | null>(null);
-
-  // Crop
-  // Crop — cropMap lives in editorHistory
   const [cropPageIdx, setCropPageIdx] = useState<number | null>(null);
   const cropEnabled = cropMap.size > 0;
-
-  // Resize
-  const [resizeEnabled, setResizeEnabled] = useState(false);
-  const [resizePreset, setResizePreset] = useState(0);
-  const [customW, setCustomW] = useState('612');
-  const [customH, setCustomH] = useState('792');
-
-  // Compress
-  const [compressEnabled, setCompressEnabled] = useState(false);
 
   // Image→PDF
   const [uploadedImages, setUploadedImages] = useState<ImageFile[]>([]);
@@ -336,11 +400,6 @@ const PdfWorkspace = () => {
   // PDF→Image
   const [exportFormat, setExportFormat] = useState<'png' | 'jpg'>('png');
 
-  // Metadata
-  const [metaTitle, setMetaTitle] = useState('');
-  const [metaAuthor, setMetaAuthor] = useState('');
-  const [metaSubject, setMetaSubject] = useState('');
-  const [metaKeywords, setMetaKeywords] = useState('');
 
   // Annotations
   // Annotations — annotationsMap lives in editorHistory
@@ -371,22 +430,30 @@ const PdfWorkspace = () => {
   const addToQueue = addToQueueIncidental;
 
   const removeFromQueue = useCallback((type: QueueStepType) => {
-    setEditQueue(prev => prev.filter(item => item.type !== type));
-    // Clear the corresponding settings (these are user actions → history entry already pushed)
-    const clearMap: Record<string, () => void> = {
-      rotate: () => setPages(prev => prev.map(p => ({ ...p, rotation: 0 }))),
-      pageNumbers: () => setPnEnabled(false),
-      watermark: () => { setWmEnabled(false); setWmText(''); setWmTextByPage(new Map()); },
-      redact: () => setRedactions(new Map()),
-      crop: () => setCropMap(new Map()),
-      resize: () => setResizeEnabled(false),
-      compress: () => setCompressEnabled(false),
-      metadata: () => { setMetaTitle(''); setMetaAuthor(''); setMetaSubject(''); setMetaKeywords(''); },
-      annotations: () => setAnnotationsMap(new Map()),
-      split: () => { setSplitGroups([[]]); setActiveSplitGroup(0); },
-    };
-    clearMap[type]?.();
-  }, [setPages, setEditQueue, setRedactions, setCropMap, setAnnotationsMap, setSplitGroups]);
+    // Coalesce the queue removal + corresponding setting clears into ONE history entry.
+    editorHistory.beginCoalesce();
+    try {
+      editorHistory.set(prev => {
+        const next: EditorSnapshot = { ...prev, editQueue: prev.editQueue.filter(item => item.type !== type) };
+        switch (type) {
+          case 'rotate': next.pages = prev.pages.map(p => ({ ...p, rotation: 0 })); break;
+          case 'pageNumbers': next.pnEnabled = false; break;
+          case 'watermark': next.wmEnabled = false; next.wmText = ''; next.wmTextByPage = new Map(); break;
+          case 'redact': next.redactions = new Map(); break;
+          case 'crop': next.cropMap = new Map(); break;
+          case 'resize': next.resizeEnabled = false; break;
+          case 'compress': next.compressEnabled = false; break;
+          case 'metadata': next.metaTitle = ''; next.metaAuthor = ''; next.metaSubject = ''; next.metaKeywords = ''; break;
+          case 'annotations': next.annotationsMap = new Map(); break;
+          case 'split': next.splitGroups = [[]]; break;
+        }
+        return next;
+      });
+    } finally {
+      editorHistory.endCoalesce();
+    }
+    if (type === 'split') setActiveSplitGroup(0);
+  }, [editorHistory]);
 
   const reorderQueue = useCallback((fromIdx: number, toIdx: number) => {
     if (fromIdx === toIdx) return;
@@ -533,16 +600,13 @@ const PdfWorkspace = () => {
   };
 
   const handleReset = () => {
-    setSources(new Map()); setPages([]); setSelectedPageIds(new Set());
-    setCompressedBlob(null); setCompressedSize(0); setQuality(70);
-    setRedactions(new Map()); setUploadedImages([]);
-    setPnEnabled(false); setWmEnabled(false); setWmText(''); setWmTextByPage(new Map());
-    setCropMap(new Map()); setWmPages(new Set());
-    setResizeEnabled(false); setCompressEnabled(false);
-    setMetaTitle(''); setMetaAuthor(''); setMetaSubject(''); setMetaKeywords('');
-    setAnnotationsMap(new Map());
-    setSplitGroups([[]]); setActiveSplitGroup(0);
-    setEditQueue([]);
+    setSources(new Map());
+    setSelectedPageIds(new Set());
+    setCompressedBlob(null); setCompressedSize(0);
+    setUploadedImages([]);
+    setActiveSplitGroup(0);
+    // One history entry for the entire reset.
+    editorHistory.set(() => emptySnapshot());
   };
 
   /* ── Save helper ─────────────────────────────── */
@@ -791,6 +855,19 @@ const PdfWorkspace = () => {
     handleDownload(processingState.failedIndex);
   };
 
+  const handleSkipFailed = () => {
+    if (!processingState || processingState.failedIndex === null) return;
+    const failed = processingState.failedIndex;
+    // Mark as skipped (visible state, not silent omission) and resume after it.
+    setProcessingState(prev => {
+      if (!prev) return prev;
+      const steps = [...prev.steps];
+      steps[failed] = { ...steps[failed], status: 'skipped', error: undefined };
+      return { ...prev, steps, failedIndex: null };
+    });
+    handleDownload(failed + 1);
+  };
+
   /* ── Standalone tool actions ──────────────────── */
   const handleImageToPdf = async () => {
     if (uploadedImages.length === 0) return;
@@ -909,13 +986,13 @@ const PdfWorkspace = () => {
   /* ── Vertical chain panel (cards) ─────────────────────── */
   const renderQueueTrail = () => {
     if (editQueue.length === 0) return null;
-    const ambiguities = detectQueueAmbiguities(editQueue);
+    const ambiguities = detectQueueAmbiguities(editQueue, { pageNumbers: pnEnabled, watermark: wmEnabled, compress: compressEnabled });
     const isProcessing = !!processingState;
     const hasError = isProcessing && processingState.failedIndex !== null;
     const allDone = isProcessing && processingState.steps.every(s => s.status === 'done');
 
     // Map step type → its display step in processingState (sequential indices match queueSteps order)
-    const statusFor = (type: QueueStepType): 'pending' | 'active' | 'done' | 'error' | null => {
+    const statusFor = (type: QueueStepType): 'pending' | 'active' | 'done' | 'error' | 'skipped' | null => {
       if (!processingState) return null;
       const found = processingState.steps.find(s => s && s.type === type);
       return found?.status ?? null;
@@ -1005,6 +1082,9 @@ const PdfWorkspace = () => {
                   {status === 'pending' && (
                     <Clock size={14} className="text-muted-foreground/60 shrink-0" aria-label="queued" />
                   )}
+                  {status === 'skipped' && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border border-border rounded px-1.5 py-px shrink-0" aria-label="skipped">Skipped</span>
+                  )}
 
                   {!isOrganize && !isProcessing && (
                     <button
@@ -1055,6 +1135,7 @@ const PdfWorkspace = () => {
             {hasError && (
               <>
                 <Button variant="secondary" size="compact" onClick={() => setProcessingState(null)}>Cancel</Button>
+                <Button variant="tertiary" size="compact" onClick={handleSkipFailed}>Skip</Button>
                 <Button variant="positive" size="compact" onClick={handleRetryFromFailed}>Retry</Button>
               </>
             )}
@@ -1359,7 +1440,7 @@ const PdfWorkspace = () => {
                     <span className="font-medium text-sm">Quality</span>
                     <span className="font-medium text-sm">{quality}%</span>
                   </div>
-                  <Slider value={[quality]} onValueChange={v => { setQuality(v[0]); setCompressEnabled(true); }} min={10} max={100} step={5} />
+                  <Slider value={[quality]} onValueChange={slideChange<number[]>(v => { setQuality(v[0]); setCompressEnabled(true); })} onValueCommit={endCoalesce} min={10} max={100} step={5} />
                   <div className="flex justify-between items-center p-4 border border-border rounded-md mt-4">
                     <div>
                       <span className="text-muted-foreground text-xs">Compressed Preview</span>
@@ -1400,11 +1481,11 @@ const PdfWorkspace = () => {
                   </div>
                   <div className="min-w-[120px]">
                     <span className="text-xs font-medium mb-2 block">Font size: {pnFontSize}px</span>
-                    <Slider value={[pnFontSize]} onValueChange={v => { setPnFontSize(v[0]); setPnEnabled(true); }} min={8} max={24} step={1} />
+                    <Slider value={[pnFontSize]} onValueChange={slideChange<number[]>(v => { setPnFontSize(v[0]); setPnEnabled(true); })} onValueCommit={endCoalesce} min={8} max={24} step={1} />
                   </div>
                   <div className="min-w-[80px]">
                     <span className="text-xs font-medium mb-2 block">Start at</span>
-                    <Input type="number" value={pnStart} onChange={e => { setPnStart(e.target.value); setPnEnabled(true); }} className="h-7 text-xs" />
+                    <Input type="number" value={pnStart} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => { setPnStart(e.target.value); setPnEnabled(true); }} className="h-7 text-xs" />
                   </div>
                 </div>
               )}
@@ -1440,15 +1521,15 @@ const PdfWorkspace = () => {
                     </div>
                     <div className="min-w-[100px]">
                       <span className="text-xs font-medium">Opacity: {wmOpacity}%</span>
-                      <Slider value={[wmOpacity]} onValueChange={v => { setWmOpacity(v[0]); if (wmEnabled) setWmEnabled(true); }} min={5} max={80} step={5} />
+                      <Slider value={[wmOpacity]} onValueChange={slideChange<number[]>(v => { setWmOpacity(v[0]); })} onValueCommit={endCoalesce} min={5} max={80} step={5} />
                     </div>
                     <div className="min-w-[100px]">
                       <span className="text-xs font-medium">Size: {wmFontSize}px</span>
-                      <Slider value={[wmFontSize]} onValueChange={v => { setWmFontSize(v[0]); if (wmEnabled) setWmEnabled(true); }} min={12} max={96} step={4} />
+                      <Slider value={[wmFontSize]} onValueChange={slideChange<number[]>(v => { setWmFontSize(v[0]); })} onValueCommit={endCoalesce} min={12} max={96} step={4} />
                     </div>
                     <div className="min-w-[100px]">
                       <span className="text-xs font-medium">Angle: {wmAngle}°</span>
-                      <Slider value={[wmAngle]} onValueChange={v => { setWmAngle(v[0]); if (wmEnabled) setWmEnabled(true); }} min={-90} max={90} step={5} />
+                      <Slider value={[wmAngle]} onValueChange={slideChange<number[]>(v => { setWmAngle(v[0]); })} onValueCommit={endCoalesce} min={-90} max={90} step={5} />
                     </div>
                   </div>
 
@@ -1596,9 +1677,9 @@ const PdfWorkspace = () => {
                     <Button variant={resizePreset === -1 ? 'default' : 'secondary'} size="mini" onClick={() => { setResizePreset(-1); setResizeEnabled(true); }}>Custom</Button>
                     {resizePreset === -1 && (
                       <div className="flex gap-2 items-center">
-                        <Input type="number" value={customW} onChange={e => setCustomW(e.target.value)} className="w-20 h-7 text-xs" />
+                        <Input type="number" value={customW} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => setCustomW(e.target.value)} className="w-20 h-7 text-xs" />
                         <span className="text-xs font-medium">×</span>
-                        <Input type="number" value={customH} onChange={e => setCustomH(e.target.value)} className="w-20 h-7 text-xs" />
+                        <Input type="number" value={customH} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => setCustomH(e.target.value)} className="w-20 h-7 text-xs" />
                         <span className="text-muted-foreground text-xs">pts</span>
                       </div>
                     )}
@@ -1640,21 +1721,21 @@ const PdfWorkspace = () => {
                   <div className="flex gap-4 flex-wrap">
                     <div className="flex-1 min-w-[140px]">
                       <span className="text-xs font-medium mb-2 block">Title</span>
-                      <Input value={metaTitle} onChange={e => setMetaTitle(e.target.value)} placeholder="Document title" className="h-8" />
+                      <Input value={metaTitle} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => setMetaTitle(e.target.value)} placeholder="Document title" className="h-8" />
                     </div>
                     <div className="flex-1 min-w-[140px]">
                       <span className="text-xs font-medium mb-2 block">Author</span>
-                      <Input value={metaAuthor} onChange={e => setMetaAuthor(e.target.value)} placeholder="Author name" className="h-8" />
+                      <Input value={metaAuthor} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => setMetaAuthor(e.target.value)} placeholder="Author name" className="h-8" />
                     </div>
                   </div>
                   <div className="flex gap-4 flex-wrap">
                     <div className="flex-1 min-w-[140px]">
                       <span className="text-xs font-medium mb-2 block">Subject</span>
-                      <Input value={metaSubject} onChange={e => setMetaSubject(e.target.value)} placeholder="Document subject" className="h-8" />
+                      <Input value={metaSubject} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => setMetaSubject(e.target.value)} placeholder="Document subject" className="h-8" />
                     </div>
                     <div className="flex-1 min-w-[140px]">
                       <span className="text-xs font-medium mb-2 block">Keywords (comma-separated)</span>
-                      <Input value={metaKeywords} onChange={e => setMetaKeywords(e.target.value)} placeholder="pdf, report, 2024" className="h-8" />
+                      <Input value={metaKeywords} onFocus={beginCoalesceOnce} onBlur={endCoalesce} onChange={e => setMetaKeywords(e.target.value)} placeholder="pdf, report, 2024" className="h-8" />
                     </div>
                   </div>
                   {hasMetadata && <p className="text-muted-foreground text-sm">✓ Metadata will be embedded on download</p>}

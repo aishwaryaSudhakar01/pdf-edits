@@ -17,17 +17,22 @@ export interface StoredImage {
 
 const store = new Map<string, StoredImage>();
 
-/** FNV-1a 32-bit (cheap, non-cryptographic) — sufficient for dedup keying. */
-function hashBytes(bytes: Uint8Array): string {
+/**
+ * FNV-1a 32-bit over the FULL byte array.
+ *
+ * Earlier we sampled only head and tail. That collided for two distinct
+ * images that happened to share header, trailer, and length — both stamps
+ * resolved to the same key and rendered identically.
+ *
+ * Hashing every byte is fast enough for the image sizes we handle here
+ * (single-pass, no allocations). Even with a clean hash we still verify
+ * byte-equality on a key hit and store under a salted key on collision,
+ * because FNV-1a is not collision-free.
+ */
+function hashAllBytes(bytes: Uint8Array): string {
   let h = 0x811c9dc5;
-  // Sample-and-fold to keep large images fast: hash header, tail, and length.
   const len = bytes.length;
-  const sampleEnd = Math.min(len, 4096);
-  for (let i = 0; i < sampleEnd; i++) {
-    h ^= bytes[i];
-    h = Math.imul(h, 0x01000193);
-  }
-  for (let i = Math.max(sampleEnd, len - 4096); i < len; i++) {
+  for (let i = 0; i < len; i++) {
     h ^= bytes[i];
     h = Math.imul(h, 0x01000193);
   }
@@ -36,9 +41,25 @@ function hashBytes(bytes: Uint8Array): string {
   return (h >>> 0).toString(16) + '_' + len.toString(16);
 }
 
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 export function putImage(bytes: Uint8Array, type: ImageKind): string {
-  const key = hashBytes(bytes);
-  if (!store.has(key)) store.set(key, { bytes, type });
+  const baseKey = hashAllBytes(bytes);
+  // Verify true byte-equality on hash hit; on collision, salt the key.
+  let key = baseKey;
+  let salt = 0;
+  while (store.has(key)) {
+    const existing = store.get(key)!;
+    if (bytesEqual(existing.bytes, bytes)) return key;
+    salt += 1;
+    key = `${baseKey}_c${salt}`;
+  }
+  store.set(key, { bytes, type });
   return key;
 }
 
