@@ -25,7 +25,7 @@ import {
   PdfOpError,
 } from '../lib/pdf-utils';
 import { useHistory } from '../lib/useHistory';
-import { preflightQueue, detectQueueAmbiguities, assertNonEmpty, assertSinglePdfPageCount, type PreflightIssue, type QueueAmbiguity } from '../lib/queue-runner';
+import { preflightQueue, detectQueueAmbiguities, assertNonEmpty, assertSinglePdfPageCount, type PreflightIssue, type QueueAmbiguity, type AmbiguityEnabledFlags } from '../lib/queue-runner';
 
 if (typeof window !== 'undefined') { pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`; }
 
