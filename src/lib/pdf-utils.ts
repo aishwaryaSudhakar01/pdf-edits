@@ -267,10 +267,22 @@ export async function buildFinalPdf(
         }
         try {
           const img = stampType === 'png' ? await doc.embedPng(stampBytes) : await doc.embedJpg(stampBytes);
-          copied.drawImage(img, {
-            x: annBox.x, y: annBox.y,
-            width: annBox.width, height: annBox.height,
-          });
+          // Mirror the editor's `object-contain`: scale to fit inside the bbox
+          // while preserving aspect ratio, then center. Without this the PDF
+          // stretches the image to fill the box (signatures look squashed and
+          // offset vs. what the user sees on screen).
+          const imgAspect = img.width / img.height;
+          const boxAspect = annBox.width / annBox.height;
+          let drawW = annBox.width;
+          let drawH = annBox.height;
+          if (imgAspect > boxAspect) {
+            drawH = annBox.width / imgAspect;
+          } else {
+            drawW = annBox.height * imgAspect;
+          }
+          const drawX = annBox.x + (annBox.width - drawW) / 2;
+          const drawY = annBox.y + (annBox.height - drawH) / 2;
+          copied.drawImage(img, { x: drawX, y: drawY, width: drawW, height: drawH });
         } catch (e) {
           throw new PdfOpError(ann.type, `${describeOp(ann.type)} failed on page ${i + 1}: ${(e as Error)?.message || 'invalid image data'}`, { pageIndex: i, cause: e });
         }
