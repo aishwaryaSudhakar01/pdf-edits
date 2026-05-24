@@ -87,8 +87,10 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
   const didStartDrag = useRef(false);
   const sigCanvasRef = useRef<HTMLCanvasElement>(null);
   const [isSigDrawing, setIsSigDrawing] = useState(false);
+  const isSigDrawingRef = useRef(false);
   const [sigPoints, setSigPoints] = useState<{ x: number; y: number }[][]>([]);
   const [currentSigStroke, setCurrentSigStroke] = useState<{ x: number; y: number }[]>([]);
+  const currentSigStrokeRef = useRef<{ x: number; y: number }[]>([]);
   const stampInputRef = useRef<HTMLInputElement>(null);
 
   // Cancel re-trigger guard
@@ -260,15 +262,39 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
     setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'stamp', x: pdf.x - w / 2, y: pdf.y - h / 2, width: w, height: h, imageKey, imageType: type }]);
   };
 
-  const getSigPos = (e: React.MouseEvent) => {
+  const getSigPos = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = sigCanvasRef.current?.getBoundingClientRect();
     if (!rect) return { x: 0, y: 0 };
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
-  const handleSigDown = (e: React.MouseEvent) => { setIsSigDrawing(true); setCurrentSigStroke([getSigPos(e)]); };
-  const handleSigMove = (e: React.MouseEvent) => { if (!isSigDrawing) return; setCurrentSigStroke(prev => [...prev, getSigPos(e)]); };
-  const handleSigUp = () => { if (!isSigDrawing) return; setIsSigDrawing(false); if (currentSigStroke.length > 1) setSigPoints(prev => [...prev, currentSigStroke]); setCurrentSigStroke([]); };
+  const handleSigDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const point = getSigPos(e);
+    isSigDrawingRef.current = true;
+    currentSigStrokeRef.current = [point];
+    setIsSigDrawing(true);
+    setCurrentSigStroke([point]);
+  };
+  const handleSigMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isSigDrawingRef.current) return;
+    e.preventDefault();
+    const next = [...currentSigStrokeRef.current, getSigPos(e)];
+    currentSigStrokeRef.current = next;
+    setCurrentSigStroke(next);
+  };
+  const handleSigUp = (e?: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isSigDrawingRef.current) return;
+    e?.preventDefault();
+    if (e?.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    isSigDrawingRef.current = false;
+    setIsSigDrawing(false);
+    const stroke = currentSigStrokeRef.current;
+    if (stroke.length > 1) setSigPoints(prev => [...prev, stroke]);
+    currentSigStrokeRef.current = [];
+    setCurrentSigStroke([]);
+  };
 
   useEffect(() => {
     const canvas = sigCanvasRef.current;
@@ -286,11 +312,29 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
   }, [sigPoints, currentSigStroke]);
 
   const placeSignature = async () => {
-    const canvas = sigCanvasRef.current;
-    if (!canvas || sigPoints.length === 0) return;
-    const blob = await new Promise<Blob>(r => canvas.toBlob(b => r(b!), 'image/png'));
+    if (sigPoints.length === 0) return;
+    const allPoints = sigPoints.flat();
+    const pad = 8;
+    const minX = Math.max(0, Math.floor(Math.min(...allPoints.map(p => p.x)) - pad));
+    const minY = Math.max(0, Math.floor(Math.min(...allPoints.map(p => p.y)) - pad));
+    const maxX = Math.min(300, Math.ceil(Math.max(...allPoints.map(p => p.x)) + pad));
+    const maxY = Math.min(100, Math.ceil(Math.max(...allPoints.map(p => p.y)) + pad));
+    const cropW = Math.max(1, maxX - minX);
+    const cropH = Math.max(1, maxY - minY);
+    const out = document.createElement('canvas');
+    out.width = cropW; out.height = cropH;
+    const ctx = out.getContext('2d');
+    if (!ctx) return;
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const stroke of sigPoints) {
+      ctx.beginPath();
+      stroke.forEach((p, i) => i === 0 ? ctx.moveTo(p.x - minX, p.y - minY) : ctx.lineTo(p.x - minX, p.y - minY));
+      ctx.stroke();
+    }
+    const blob = await new Promise<Blob | null>(r => out.toBlob(r, 'image/png'));
+    if (!blob) return;
     const data = new Uint8Array(await blob.arrayBuffer());
-    const w = 150; const h = 75;
+    const w = 150; const h = Math.max(24, Math.min(75, w * (cropH / cropW)));
     const cx = pageSize.width / 2; const cy = pageSize.height / 2;
     const imageKey = putImage(data, 'png');
     setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'signature', x: cx - w / 2, y: cy - h / 2, width: w, height: h, imageKey, imageType: 'png' }]);
@@ -384,7 +428,7 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
         <div className="flex gap-4 items-center mb-4">
           <div className="bg-white rounded-lg border-2 border-white/30">
             <canvas ref={sigCanvasRef} width={300} height={100} className="cursor-crosshair block rounded-lg"
-              onMouseDown={handleSigDown} onMouseMove={handleSigMove} onMouseUp={handleSigUp} onMouseLeave={handleSigUp} />
+              onPointerDown={handleSigDown} onPointerMove={handleSigMove} onPointerUp={handleSigUp} onPointerCancel={handleSigUp} />
           </div>
           <div className="flex flex-col gap-1">
             <Button variant="secondary" size="mini" onClick={placeSignature} disabled={sigPoints.length === 0}>Place Signature</Button>
