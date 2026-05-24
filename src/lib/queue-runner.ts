@@ -1,6 +1,7 @@
 import { PDFDocument } from 'pdf-lib';
 import type { Annotation } from '../components/AnnotationOverlay';
 import { PdfOpError, type CropValues, type RedactRect, type PageItem } from './pdf-utils';
+import { getImage } from './image-store';
 
 /* ── Queue types (mirror PdfWorkspace) ─────────── */
 export type QueueStepType =
