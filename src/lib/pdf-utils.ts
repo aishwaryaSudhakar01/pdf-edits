@@ -47,8 +47,9 @@ function displayBoxToPageBox(
   pageSize: { width: number; height: number },
   rotation: number,
 ) {
-  const top = (rotation === 90 || rotation === 270 ? pageSize.width : pageSize.height) - box.y - box.height;
-  switch (normalizeRotation(rotation)) {
+  const n = normalizeRotation(rotation);
+  const top = (n === 90 || n === 270 ? pageSize.width : pageSize.height) - box.y - box.height;
+  switch (n) {
     case 90: return { x: top, y: box.x, width: box.height, height: box.width };
     case 180: return { x: pageSize.width - box.x - box.width, y: top, width: box.width, height: box.height };
     case 270: return { x: box.y, y: pageSize.height - box.x - box.width, width: box.height, height: box.width };
@@ -154,7 +155,12 @@ export async function buildFinalPdf(
     // Redactions
     const rects = options.redactions.get(i) || [];
     for (const r of rects) {
-      copied.drawRectangle({ x: r.x, y: r.y, width: r.width, height: r.height, color: rgb(0, 0, 0) });
+      const rectBox = displayBoxToPageBox(
+        { x: r.x, y: r.y, width: r.width, height: r.height },
+        { width, height },
+        outputRotation,
+      );
+      copied.drawRectangle({ x: rectBox.x, y: rectBox.y, width: rectBox.width, height: rectBox.height, color: rgb(0, 0, 0) });
     }
 
     // Crop (per-page)
