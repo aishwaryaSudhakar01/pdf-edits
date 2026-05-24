@@ -154,7 +154,12 @@ export async function buildFinalPdf(
     // Redactions
     const rects = options.redactions.get(i) || [];
     for (const r of rects) {
-      copied.drawRectangle({ x: r.x, y: r.y, width: r.width, height: r.height, color: rgb(0, 0, 0) });
+      const rectBox = displayBoxToPageBox(
+        { x: r.x, y: r.y, width: r.width, height: r.height },
+        { width, height },
+        outputRotation,
+      );
+      copied.drawRectangle({ x: rectBox.x, y: rectBox.y, width: rectBox.width, height: rectBox.height, color: rgb(0, 0, 0) });
     }
 
     // Crop (per-page)
