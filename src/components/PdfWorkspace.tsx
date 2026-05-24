@@ -335,8 +335,6 @@ const PdfWorkspace = () => {
   const [processingState, setProcessingState] = useState<ProcessingState | null>(null);
   const [preflightIssues, setPreflightIssues] = useState<PreflightIssue[] | null>(null);
   const [compressWarning, setCompressWarning] = useState<{ pendingRun: () => void } | null>(null);
-  const [saveDialog, setSaveDialog] = useState<{ defaultName: string; ext: string; value: string } | null>(null);
-  const saveDialogResolverRef = useRef<((name: string | null) => void) | null>(null);
 
   // Queue drag state
   const [dragQueueIdx, setDragQueueIdx] = useState<number | null>(null);
@@ -612,44 +610,9 @@ const PdfWorkspace = () => {
   };
 
   /* ── Save helper ─────────────────────────────── */
-  const saveBlob = async (blob: Blob, defaultName: string, mimeType = 'application/pdf', ext = 'pdf') => {
-    // Prefer the File System Access API so users can pick folder + filename
-    const anyWin = window as unknown as {
-      showSaveFilePicker?: (opts: {
-        suggestedName?: string;
-        types?: { description?: string; accept: Record<string, string[]> }[];
-      }) => Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }>;
-    };
-    // showSaveFilePicker is unavailable in cross-origin iframes (e.g. Lovable preview).
-    // Detect that case and skip straight to the prompt-based fallback so the
-    // user can still choose a filename.
-    const inIframe = (() => { try { return window.self !== window.top; } catch { return true; } })();
-    if (typeof anyWin.showSaveFilePicker === 'function' && !inIframe) {
-      try {
-        const handle = await anyWin.showSaveFilePicker({
-          suggestedName: defaultName,
-          types: [{
-            description: ext.toUpperCase() + ' file',
-            accept: { [mimeType]: [`.${ext}`] },
-          }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        return;
-      } catch (err) {
-        if ((err as { name?: string })?.name === 'AbortError') return;
-        // Other errors fall through to the prompt fallback below.
-      }
-    }
-    // Fallback: ask the user for a filename via in-app modal, then trigger an anchor download.
-    // (window.prompt is blocked in cross-origin iframes like the Lovable preview.)
-    const userName = await new Promise<string | null>(resolve => {
-      saveDialogResolverRef.current = resolve;
-      setSaveDialog({ defaultName, ext, value: defaultName });
-    });
-    if (userName === null) return; // user cancelled
-    let finalName = userName.trim() || defaultName;
+  const saveBlob = async (blob: Blob, defaultName: string, _mimeType = 'application/pdf', ext = 'pdf') => {
+    // The filename is set inline in the file list; just download it directly.
+    let finalName = defaultName.trim() || `output.${ext}`;
     if (!finalName.toLowerCase().endsWith(`.${ext.toLowerCase()}`)) {
       finalName += `.${ext}`;
     }
@@ -1853,43 +1816,8 @@ const PdfWorkspace = () => {
         </div>
       )}
 
-      {/* Save filename dialog (replaces window.prompt which is blocked in iframes) */}
-      {saveDialog && (
-        <div className="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
-          <form
-            className="bg-background border border-border rounded-lg p-6 max-w-md w-full"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const v = saveDialog.value;
-              setSaveDialog(null);
-              saveDialogResolverRef.current?.(v);
-              saveDialogResolverRef.current = null;
-            }}
-          >
-            <h3 className="text-foreground font-semibold text-base mb-2">Save as</h3>
-            <p className="text-muted-foreground text-sm mb-4">Choose a filename for your download.</p>
-            <Input
-              autoFocus
-              value={saveDialog.value}
-              onChange={(e) => setSaveDialog(s => s ? { ...s, value: e.target.value } : s)}
-              placeholder={saveDialog.defaultName}
-            />
-            <div className="flex gap-2 justify-end mt-5">
-              <Button
-                type="button"
-                variant="secondary"
-                size="compact"
-                onClick={() => {
-                  setSaveDialog(null);
-                  saveDialogResolverRef.current?.(null);
-                  saveDialogResolverRef.current = null;
-                }}
-              >Cancel</Button>
-              <Button type="submit" variant="positive" size="compact">Download</Button>
-            </div>
-          </form>
-        </div>
-      )}
+
+
 
       {/* Processing state is rendered inline on the chain cards (no modal) */}
 
