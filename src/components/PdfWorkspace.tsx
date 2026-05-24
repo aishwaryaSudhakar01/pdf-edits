@@ -1853,6 +1853,44 @@ const PdfWorkspace = () => {
         </div>
       )}
 
+      {/* Save filename dialog (replaces window.prompt which is blocked in iframes) */}
+      {saveDialog && (
+        <div className="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+          <form
+            className="bg-background border border-border rounded-lg p-6 max-w-md w-full"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const v = saveDialog.value;
+              setSaveDialog(null);
+              saveDialogResolverRef.current?.(v);
+              saveDialogResolverRef.current = null;
+            }}
+          >
+            <h3 className="text-foreground font-semibold text-base mb-2">Save as</h3>
+            <p className="text-muted-foreground text-sm mb-4">Choose a filename for your download.</p>
+            <Input
+              autoFocus
+              value={saveDialog.value}
+              onChange={(e) => setSaveDialog(s => s ? { ...s, value: e.target.value } : s)}
+              placeholder={saveDialog.defaultName}
+            />
+            <div className="flex gap-2 justify-end mt-5">
+              <Button
+                type="button"
+                variant="secondary"
+                size="compact"
+                onClick={() => {
+                  setSaveDialog(null);
+                  saveDialogResolverRef.current?.(null);
+                  saveDialogResolverRef.current = null;
+                }}
+              >Cancel</Button>
+              <Button type="submit" variant="positive" size="compact">Download</Button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* Processing state is rendered inline on the chain cards (no modal) */}
 
       {/* Redact Overlay */}
