@@ -428,7 +428,7 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
         <div className="flex gap-4 items-center mb-4">
           <div className="bg-white rounded-lg border-2 border-white/30">
             <canvas ref={sigCanvasRef} width={300} height={100} className="cursor-crosshair block rounded-lg"
-              onMouseDown={handleSigDown} onMouseMove={handleSigMove} onMouseUp={handleSigUp} onMouseLeave={handleSigUp} />
+              onPointerDown={handleSigDown} onPointerMove={handleSigMove} onPointerUp={handleSigUp} onPointerCancel={handleSigUp} />
           </div>
           <div className="flex flex-col gap-1">
             <Button variant="secondary" size="mini" onClick={placeSignature} disabled={sigPoints.length === 0}>Place Signature</Button>
