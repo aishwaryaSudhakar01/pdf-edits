@@ -1218,7 +1218,7 @@ const PdfWorkspace = () => {
       {/* ── Main content ───────────────────────── */}
       <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
         {/* Drop zone */}
-        <div className={cn("flex items-start justify-center shrink-0", hasPdfPages && !isImageTool ? "p-2 px-5" : "p-8", (!hasPdfPages || (isImageTool && uploadedImages.length === 0)) && "flex-1 pt-12")}>
+        <div className={cn("flex justify-center shrink-0", hasPdfPages && !isImageTool ? "items-start p-2 px-5" : "flex-col items-center p-8", (!hasPdfPages || (isImageTool && uploadedImages.length === 0)) && "flex-1 pt-12")}>
           <div
             className={cn("relative w-full border-2 border-dashed border-border rounded-2xl text-center cursor-pointer transition-colors",
               hasPdfPages && !isImageTool ? "p-2 px-4 bg-secondary hover:bg-accent" : "max-w-[520px] p-14 bg-card/50 backdrop-blur-sm hover:bg-card/70")}
@@ -1256,6 +1256,12 @@ const PdfWorkspace = () => {
               <p className="text-muted-foreground text-sm">Drop PDFs here or click to add more files</p>
             )}
           </div>
+          {!hasPdfPages && !isImageTool && (
+            <div className="mt-8 text-center">
+              <p className="text-foreground text-lg font-semibold tracking-tight">One PDF. Every edit. One download.</p>
+              <p className="text-muted-foreground text-sm mt-1.5">A PDF editor that does all your edits in one pass — right in your browser.</p>
+            </div>
+          )}
         </div>
 
         {(hasPdfPages || (isImageTool && uploadedImages.length > 0)) && (
