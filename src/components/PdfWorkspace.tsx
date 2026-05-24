@@ -642,10 +642,12 @@ const PdfWorkspace = () => {
         // Other errors fall through to the prompt fallback below.
       }
     }
-    // Fallback: ask the user for a filename, then trigger an anchor download.
-    // (Folder selection isn't possible without the File System Access API; the
-    // browser's default download folder will be used.)
-    const userName = window.prompt('Save as (filename):', defaultName);
+    // Fallback: ask the user for a filename via in-app modal, then trigger an anchor download.
+    // (window.prompt is blocked in cross-origin iframes like the Lovable preview.)
+    const userName = await new Promise<string | null>(resolve => {
+      saveDialogResolverRef.current = resolve;
+      setSaveDialog({ defaultName, ext, value: defaultName });
+    });
     if (userName === null) return; // user cancelled
     let finalName = userName.trim() || defaultName;
     if (!finalName.toLowerCase().endsWith(`.${ext.toLowerCase()}`)) {
