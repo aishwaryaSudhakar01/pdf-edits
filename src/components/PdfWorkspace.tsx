@@ -612,44 +612,9 @@ const PdfWorkspace = () => {
   };
 
   /* ── Save helper ─────────────────────────────── */
-  const saveBlob = async (blob: Blob, defaultName: string, mimeType = 'application/pdf', ext = 'pdf') => {
-    // Prefer the File System Access API so users can pick folder + filename
-    const anyWin = window as unknown as {
-      showSaveFilePicker?: (opts: {
-        suggestedName?: string;
-        types?: { description?: string; accept: Record<string, string[]> }[];
-      }) => Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }>;
-    };
-    // showSaveFilePicker is unavailable in cross-origin iframes (e.g. Lovable preview).
-    // Detect that case and skip straight to the prompt-based fallback so the
-    // user can still choose a filename.
-    const inIframe = (() => { try { return window.self !== window.top; } catch { return true; } })();
-    if (typeof anyWin.showSaveFilePicker === 'function' && !inIframe) {
-      try {
-        const handle = await anyWin.showSaveFilePicker({
-          suggestedName: defaultName,
-          types: [{
-            description: ext.toUpperCase() + ' file',
-            accept: { [mimeType]: [`.${ext}`] },
-          }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        return;
-      } catch (err) {
-        if ((err as { name?: string })?.name === 'AbortError') return;
-        // Other errors fall through to the prompt fallback below.
-      }
-    }
-    // Fallback: ask the user for a filename via in-app modal, then trigger an anchor download.
-    // (window.prompt is blocked in cross-origin iframes like the Lovable preview.)
-    const userName = await new Promise<string | null>(resolve => {
-      saveDialogResolverRef.current = resolve;
-      setSaveDialog({ defaultName, ext, value: defaultName });
-    });
-    if (userName === null) return; // user cancelled
-    let finalName = userName.trim() || defaultName;
+  const saveBlob = async (blob: Blob, defaultName: string, _mimeType = 'application/pdf', ext = 'pdf') => {
+    // The filename is set inline in the file list; just download it directly.
+    let finalName = defaultName.trim() || `output.${ext}`;
     if (!finalName.toLowerCase().endsWith(`.${ext.toLowerCase()}`)) {
       finalName += `.${ext}`;
     }
