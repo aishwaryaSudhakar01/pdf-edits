@@ -335,6 +335,8 @@ const PdfWorkspace = () => {
   const [processingState, setProcessingState] = useState<ProcessingState | null>(null);
   const [preflightIssues, setPreflightIssues] = useState<PreflightIssue[] | null>(null);
   const [compressWarning, setCompressWarning] = useState<{ pendingRun: () => void } | null>(null);
+  const [saveDialog, setSaveDialog] = useState<{ defaultName: string; ext: string; value: string } | null>(null);
+  const saveDialogResolverRef = useRef<((name: string | null) => void) | null>(null);
 
   // Queue drag state
   const [dragQueueIdx, setDragQueueIdx] = useState<number | null>(null);
@@ -640,10 +642,12 @@ const PdfWorkspace = () => {
         // Other errors fall through to the prompt fallback below.
       }
     }
-    // Fallback: ask the user for a filename, then trigger an anchor download.
-    // (Folder selection isn't possible without the File System Access API; the
-    // browser's default download folder will be used.)
-    const userName = window.prompt('Save as (filename):', defaultName);
+    // Fallback: ask the user for a filename via in-app modal, then trigger an anchor download.
+    // (window.prompt is blocked in cross-origin iframes like the Lovable preview.)
+    const userName = await new Promise<string | null>(resolve => {
+      saveDialogResolverRef.current = resolve;
+      setSaveDialog({ defaultName, ext, value: defaultName });
+    });
     if (userName === null) return; // user cancelled
     let finalName = userName.trim() || defaultName;
     if (!finalName.toLowerCase().endsWith(`.${ext.toLowerCase()}`)) {
@@ -1846,6 +1850,44 @@ const PdfWorkspace = () => {
               <Button variant="positive" size="compact" onClick={() => compressWarning.pendingRun()}>Continue</Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Save filename dialog (replaces window.prompt which is blocked in iframes) */}
+      {saveDialog && (
+        <div className="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+          <form
+            className="bg-background border border-border rounded-lg p-6 max-w-md w-full"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const v = saveDialog.value;
+              setSaveDialog(null);
+              saveDialogResolverRef.current?.(v);
+              saveDialogResolverRef.current = null;
+            }}
+          >
+            <h3 className="text-foreground font-semibold text-base mb-2">Save as</h3>
+            <p className="text-muted-foreground text-sm mb-4">Choose a filename for your download.</p>
+            <Input
+              autoFocus
+              value={saveDialog.value}
+              onChange={(e) => setSaveDialog(s => s ? { ...s, value: e.target.value } : s)}
+              placeholder={saveDialog.defaultName}
+            />
+            <div className="flex gap-2 justify-end mt-5">
+              <Button
+                type="button"
+                variant="secondary"
+                size="compact"
+                onClick={() => {
+                  setSaveDialog(null);
+                  saveDialogResolverRef.current?.(null);
+                  saveDialogResolverRef.current = null;
+                }}
+              >Cancel</Button>
+              <Button type="submit" variant="positive" size="compact">Download</Button>
+            </div>
+          </form>
         </div>
       )}
 
