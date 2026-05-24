@@ -202,16 +202,20 @@ export async function buildFinalPdf(
     if (options.watermark.enabled && wmTextForPage && font && wmApplies) {
       const wm = options.watermark;
       const tw = font.widthOfTextAtSize(wmTextForPage, wm.fontSize);
-      const rad = (wm.angle * Math.PI) / 180;
+      // Editor stores angle in CSS convention (clockwise). PDF rotates CCW,
+      // so negate to match the on-screen direction.
+      const pdfAngle = -wm.angle;
+      const rad = (pdfAngle * Math.PI) / 180;
       const cx = eX + eW / 2;
       const cy = eY + eH / 2;
-      const x = cx - (tw / 2) * Math.cos(Math.abs(rad));
-      const y = cy + (tw / 2) * Math.sin(rad);
+      // Center the text's baseline midpoint on (cx, cy) after rotation.
+      const x = cx - (tw / 2) * Math.cos(rad);
+      const y = cy - (tw / 2) * Math.sin(rad);
       copied.drawText(wmTextForPage, {
         x, y, size: wm.fontSize, font,
         color: rgb(0.5, 0.5, 0.5),
         opacity: wm.opacity / 100,
-        rotate: degrees(wm.angle),
+        rotate: degrees(pdfAngle),
       });
     }
 
