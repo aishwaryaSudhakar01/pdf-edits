@@ -37,6 +37,25 @@ function describeOp(op: PdfOperationKind): string {
   return map[op];
 }
 
+function normalizeRotation(angle: number): 0 | 90 | 180 | 270 {
+  const n = ((Math.round(angle / 90) * 90) % 360 + 360) % 360;
+  return (n === 90 || n === 180 || n === 270 ? n : 0) as 0 | 90 | 180 | 270;
+}
+
+function displayBoxToPageBox(
+  box: { x: number; y: number; width: number; height: number },
+  pageSize: { width: number; height: number },
+  rotation: number,
+) {
+  const top = (rotation === 90 || rotation === 270 ? pageSize.width : pageSize.height) - box.y - box.height;
+  switch (normalizeRotation(rotation)) {
+    case 90: return { x: top, y: box.x, width: box.height, height: box.width };
+    case 180: return { x: pageSize.width - box.x - box.width, y: top, width: box.width, height: box.height };
+    case 270: return { x: box.y, y: pageSize.height - box.x - box.width, width: box.height, height: box.width };
+    default: return box;
+  }
+}
+
 /* ── Types ─────────────────────────────────────── */
 
 export interface PageItem {
@@ -123,9 +142,10 @@ export async function buildFinalPdf(
     const srcDoc = await PDFDocument.load(src.buffer.slice(0), { ignoreEncryption: true });
     const [copied] = await doc.copyPages(srcDoc, [page.sourcePageIndex]);
 
+    const currentRotation = copied.getRotation().angle;
+    const outputRotation = (currentRotation + page.rotation) % 360;
     if (page.rotation) {
-      const current = copied.getRotation().angle;
-      copied.setRotation(degrees((current + page.rotation) % 360));
+      copied.setRotation(degrees(outputRotation));
     }
 
     doc.addPage(copied);
@@ -190,11 +210,15 @@ export async function buildFinalPdf(
     }
 
     // Annotations
-    // Coordinate convention: ann.y is the PDF y at the BOTTOM of the
-    // annotation's bounding box (matches the editor overlay's renderer,
-    // which places the box at screen top = (pageHeight - ann.y) - height).
+    // Annotation coordinates are stored in the same displayed page coordinate
+    // space used by the overlay, then mapped back to the underlying PDF page.
     const anns = options.annotations.get(i) || [];
     for (const ann of anns) {
+      const annBox = displayBoxToPageBox(
+        { x: ann.x, y: ann.y, width: ann.width, height: ann.height },
+        { width, height },
+        outputRotation,
+      );
       if (ann.type === 'text' && ann.text && font) {
         const hexToRgb = (hex: string) => {
           const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -206,7 +230,7 @@ export async function buildFinalPdf(
         // Baseline sits ~0.2*fs above bbox bottom so descenders match the
         // editor preview (which renders text inside a div from top to top+h).
         copied.drawText(ann.text, {
-          x: ann.x, y: ann.y + 0.2 * fs,
+          x: annBox.x, y: annBox.y + 0.2 * fs,
           size: fs, font,
           color: hexToRgb(ann.color || '#000000'),
         });
@@ -218,8 +242,8 @@ export async function buildFinalPdf(
           return rgb(r, g, b);
         };
         copied.drawRectangle({
-          x: ann.x, y: ann.y,
-          width: ann.width, height: ann.height,
+          x: annBox.x, y: annBox.y,
+          width: annBox.width, height: annBox.height,
           color: hexToRgb(ann.highlightColor || '#FFFF00'),
           opacity: ann.highlightOpacity || 0.4,
         });
@@ -234,8 +258,8 @@ export async function buildFinalPdf(
         try {
           const img = stampType === 'png' ? await doc.embedPng(stampBytes) : await doc.embedJpg(stampBytes);
           copied.drawImage(img, {
-            x: ann.x, y: ann.y,
-            width: ann.width, height: ann.height,
+            x: annBox.x, y: annBox.y,
+            width: annBox.width, height: annBox.height,
           });
         } catch (e) {
           throw new PdfOpError(ann.type, `${describeOp(ann.type)} failed on page ${i + 1}: ${(e as Error)?.message || 'invalid image data'}`, { pageIndex: i, cause: e });

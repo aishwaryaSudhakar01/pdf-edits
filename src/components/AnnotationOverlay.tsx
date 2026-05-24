@@ -257,7 +257,7 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
     const h = img.height * scale;
     const pdf = toPdf(drawStart.x || displaySize.width / 2, drawStart.y || displaySize.height / 2);
     const imageKey = putImage(data, type);
-    setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'stamp', x: pdf.x - w / 2, y: pdf.y + h / 2, width: w, height: h, imageKey, imageType: type }]);
+    setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'stamp', x: pdf.x - w / 2, y: pdf.y - h / 2, width: w, height: h, imageKey, imageType: type }]);
   };
 
   const getSigPos = (e: React.MouseEvent) => {
@@ -293,7 +293,7 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
     const w = 150; const h = 75;
     const cx = pageSize.width / 2; const cy = pageSize.height / 2;
     const imageKey = putImage(data, 'png');
-    setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'signature', x: cx - w / 2, y: cy + h / 2, width: w, height: h, imageKey, imageType: 'png' }]);
+    setAnnotations(prev => [...prev, { id: crypto.randomUUID(), type: 'signature', x: cx - w / 2, y: cy - h / 2, width: w, height: h, imageKey, imageType: 'png' }]);
     setSigPoints([]);
   };
 
