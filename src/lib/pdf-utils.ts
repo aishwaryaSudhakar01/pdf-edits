@@ -190,6 +190,9 @@ export async function buildFinalPdf(
     }
 
     // Annotations
+    // Coordinate convention: ann.y is the PDF y at the BOTTOM of the
+    // annotation's bounding box (matches the editor overlay's renderer,
+    // which places the box at screen top = (pageHeight - ann.y) - height).
     const anns = options.annotations.get(i) || [];
     for (const ann of anns) {
       if (ann.type === 'text' && ann.text && font) {
@@ -199,9 +202,12 @@ export async function buildFinalPdf(
           const b = parseInt(hex.slice(5, 7), 16) / 255;
           return rgb(r, g, b);
         };
+        const fs = ann.fontSize || 16;
+        // Baseline sits ~0.2*fs above bbox bottom so descenders match the
+        // editor preview (which renders text inside a div from top to top+h).
         copied.drawText(ann.text, {
-          x: ann.x, y: ann.y - (ann.fontSize || 16),
-          size: ann.fontSize || 16, font,
+          x: ann.x, y: ann.y + 0.2 * fs,
+          size: fs, font,
           color: hexToRgb(ann.color || '#000000'),
         });
       } else if (ann.type === 'highlight') {
@@ -212,7 +218,7 @@ export async function buildFinalPdf(
           return rgb(r, g, b);
         };
         copied.drawRectangle({
-          x: ann.x, y: ann.y - ann.height,
+          x: ann.x, y: ann.y,
           width: ann.width, height: ann.height,
           color: hexToRgb(ann.highlightColor || '#FFFF00'),
           opacity: ann.highlightOpacity || 0.4,
