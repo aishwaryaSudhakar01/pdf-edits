@@ -214,6 +214,11 @@ export async function buildFinalPdf(
     // which places the box at screen top = (pageHeight - ann.y) - height).
     const anns = options.annotations.get(i) || [];
     for (const ann of anns) {
+      const annBox = displayBoxToPageBox(
+        { x: ann.x, y: ann.y, width: ann.width, height: ann.height },
+        { width, height },
+        page.rotation,
+      );
       if (ann.type === 'text' && ann.text && font) {
         const hexToRgb = (hex: string) => {
           const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -225,7 +230,7 @@ export async function buildFinalPdf(
         // Baseline sits ~0.2*fs above bbox bottom so descenders match the
         // editor preview (which renders text inside a div from top to top+h).
         copied.drawText(ann.text, {
-          x: ann.x, y: ann.y + 0.2 * fs,
+          x: annBox.x, y: annBox.y + 0.2 * fs,
           size: fs, font,
           color: hexToRgb(ann.color || '#000000'),
         });
@@ -237,8 +242,8 @@ export async function buildFinalPdf(
           return rgb(r, g, b);
         };
         copied.drawRectangle({
-          x: ann.x, y: ann.y,
-          width: ann.width, height: ann.height,
+          x: annBox.x, y: annBox.y,
+          width: annBox.width, height: annBox.height,
           color: hexToRgb(ann.highlightColor || '#FFFF00'),
           opacity: ann.highlightOpacity || 0.4,
         });
@@ -253,8 +258,8 @@ export async function buildFinalPdf(
         try {
           const img = stampType === 'png' ? await doc.embedPng(stampBytes) : await doc.embedJpg(stampBytes);
           copied.drawImage(img, {
-            x: ann.x, y: ann.y,
-            width: ann.width, height: ann.height,
+            x: annBox.x, y: annBox.y,
+            width: annBox.width, height: annBox.height,
           });
         } catch (e) {
           throw new PdfOpError(ann.type, `${describeOp(ann.type)} failed on page ${i + 1}: ${(e as Error)?.message || 'invalid image data'}`, { pageIndex: i, cause: e });
