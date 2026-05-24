@@ -79,9 +79,10 @@ export function preflightQueue(queue: QueueItem[], ctx: PreflightContext): Prefl
             issues.push({ operation: 'annotations', pageNumber: pageIdx + 1, message: `Page ${pageIdx + 1}: stamp image is not a valid PNG or JPEG` });
           }
         } else if (ann.type === 'signature') {
-          if (!ann.signatureData || ann.signatureData.length === 0) {
+          const sigBytes = ann.imageKey ? getImage(ann.imageKey)?.bytes : ann.signatureData;
+          if (!sigBytes || sigBytes.length === 0) {
             issues.push({ operation: 'annotations', pageNumber: pageIdx + 1, message: `Page ${pageIdx + 1}: signature has no data` });
-          } else if (!looksLikePng(ann.signatureData)) {
+          } else if (!looksLikePng(sigBytes)) {
             issues.push({ operation: 'annotations', pageNumber: pageIdx + 1, message: `Page ${pageIdx + 1}: signature is not a valid PNG` });
           }
         } else if (ann.type === 'text') {
