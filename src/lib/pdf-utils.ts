@@ -37,6 +37,25 @@ function describeOp(op: PdfOperationKind): string {
   return map[op];
 }
 
+function normalizeRotation(angle: number): 0 | 90 | 180 | 270 {
+  const n = ((Math.round(angle / 90) * 90) % 360 + 360) % 360;
+  return (n === 90 || n === 180 || n === 270 ? n : 0) as 0 | 90 | 180 | 270;
+}
+
+function displayBoxToPageBox(
+  box: { x: number; y: number; width: number; height: number },
+  pageSize: { width: number; height: number },
+  rotation: number,
+) {
+  const top = (rotation === 90 || rotation === 270 ? pageSize.width : pageSize.height) - box.y - box.height;
+  switch (normalizeRotation(rotation)) {
+    case 90: return { x: top, y: box.x, width: box.height, height: box.width };
+    case 180: return { x: pageSize.width - box.x - box.width, y: top, width: box.width, height: box.height };
+    case 270: return { x: box.y, y: pageSize.height - box.x - box.width, width: box.height, height: box.width };
+    default: return box;
+  }
+}
+
 /* ── Types ─────────────────────────────────────── */
 
 export interface PageItem {
