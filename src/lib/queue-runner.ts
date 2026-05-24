@@ -1,6 +1,7 @@
 import { PDFDocument } from 'pdf-lib';
 import type { Annotation } from '../components/AnnotationOverlay';
 import { PdfOpError, type CropValues, type RedactRect, type PageItem } from './pdf-utils';
+import { getImage } from './image-store';
 
 /* ── Queue types (mirror PdfWorkspace) ─────────── */
 export type QueueStepType =
@@ -71,15 +72,17 @@ export function preflightQueue(queue: QueueItem[], ctx: PreflightContext): Prefl
     for (const [pageIdx, anns] of ctx.annotationsMap.entries()) {
       for (const ann of anns) {
         if (ann.type === 'stamp') {
-          if (!ann.imageData || ann.imageData.length === 0) {
+          const stampBytes = ann.imageKey ? getImage(ann.imageKey)?.bytes : ann.imageData;
+          if (!stampBytes || stampBytes.length === 0) {
             issues.push({ operation: 'annotations', pageNumber: pageIdx + 1, message: `Page ${pageIdx + 1}: stamp has no image data` });
-          } else if (!looksLikePng(ann.imageData) && !looksLikeJpg(ann.imageData)) {
+          } else if (!looksLikePng(stampBytes) && !looksLikeJpg(stampBytes)) {
             issues.push({ operation: 'annotations', pageNumber: pageIdx + 1, message: `Page ${pageIdx + 1}: stamp image is not a valid PNG or JPEG` });
           }
         } else if (ann.type === 'signature') {
-          if (!ann.signatureData || ann.signatureData.length === 0) {
+          const sigBytes = ann.imageKey ? getImage(ann.imageKey)?.bytes : ann.signatureData;
+          if (!sigBytes || sigBytes.length === 0) {
             issues.push({ operation: 'annotations', pageNumber: pageIdx + 1, message: `Page ${pageIdx + 1}: signature has no data` });
-          } else if (!looksLikePng(ann.signatureData)) {
+          } else if (!looksLikePng(sigBytes)) {
             issues.push({ operation: 'annotations', pageNumber: pageIdx + 1, message: `Page ${pageIdx + 1}: signature is not a valid PNG` });
           }
         } else if (ann.type === 'text') {
