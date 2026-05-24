@@ -398,9 +398,9 @@ const AnnotationOverlay = ({ pdfBuffer, pageIndex, rotation = 0, existingAnnotat
 
       <div ref={containerRef} className="relative"
         style={{ cursor: mode === 'signature' ? 'default' : 'crosshair' }}
-        onMouseDown={mode !== 'signature' ? handleMouseDown : undefined}
-        onMouseMove={mode !== 'signature' ? handleMouseMove : undefined}
-        onMouseUp={mode !== 'signature' ? handleMouseUp : undefined}>
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}>
         <canvas ref={canvasRef} className="block rounded" />
         {annotations.map(ann => {
           const s = toScreen(ann.x, ann.y);
