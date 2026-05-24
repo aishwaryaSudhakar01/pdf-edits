@@ -234,7 +234,7 @@ export async function buildFinalPdf(
         try {
           const img = stampType === 'png' ? await doc.embedPng(stampBytes) : await doc.embedJpg(stampBytes);
           copied.drawImage(img, {
-            x: ann.x, y: ann.y - ann.height,
+            x: ann.x, y: ann.y,
             width: ann.width, height: ann.height,
           });
         } catch (e) {
