@@ -142,9 +142,10 @@ export async function buildFinalPdf(
     const srcDoc = await PDFDocument.load(src.buffer.slice(0), { ignoreEncryption: true });
     const [copied] = await doc.copyPages(srcDoc, [page.sourcePageIndex]);
 
+    const currentRotation = copied.getRotation().angle;
+    const outputRotation = (currentRotation + page.rotation) % 360;
     if (page.rotation) {
-      const current = copied.getRotation().angle;
-      copied.setRotation(degrees((current + page.rotation) % 360));
+      copied.setRotation(degrees(outputRotation));
     }
 
     doc.addPage(copied);
@@ -209,15 +210,14 @@ export async function buildFinalPdf(
     }
 
     // Annotations
-    // Coordinate convention: ann.y is the PDF y at the BOTTOM of the
-    // annotation's bounding box (matches the editor overlay's renderer,
-    // which places the box at screen top = (pageHeight - ann.y) - height).
+    // Annotation coordinates are stored in the same displayed page coordinate
+    // space used by the overlay, then mapped back to the underlying PDF page.
     const anns = options.annotations.get(i) || [];
     for (const ann of anns) {
       const annBox = displayBoxToPageBox(
         { x: ann.x, y: ann.y, width: ann.width, height: ann.height },
         { width, height },
-        page.rotation,
+        outputRotation,
       );
       if (ann.type === 'text' && ann.text && font) {
         const hexToRgb = (hex: string) => {
