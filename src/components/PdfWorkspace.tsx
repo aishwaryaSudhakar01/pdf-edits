@@ -335,6 +335,8 @@ const PdfWorkspace = () => {
   const [processingState, setProcessingState] = useState<ProcessingState | null>(null);
   const [preflightIssues, setPreflightIssues] = useState<PreflightIssue[] | null>(null);
   const [compressWarning, setCompressWarning] = useState<{ pendingRun: () => void } | null>(null);
+  const [saveDialog, setSaveDialog] = useState<{ defaultName: string; ext: string; value: string } | null>(null);
+  const saveDialogResolverRef = useRef<((name: string | null) => void) | null>(null);
 
   // Queue drag state
   const [dragQueueIdx, setDragQueueIdx] = useState<number | null>(null);
