@@ -15,7 +15,11 @@ export interface StoredImage {
   type: ImageKind;
 }
 
-const store = new Map<string, StoredImage>();
+const imageStoreGlobal = globalThis as typeof globalThis & {
+  __pdfEditorImageStore?: Map<string, StoredImage>;
+};
+
+const store = imageStoreGlobal.__pdfEditorImageStore ?? (imageStoreGlobal.__pdfEditorImageStore = new Map<string, StoredImage>());
 
 /**
  * FNV-1a 32-bit over the FULL byte array.
