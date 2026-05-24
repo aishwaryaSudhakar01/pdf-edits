@@ -618,7 +618,11 @@ const PdfWorkspace = () => {
         types?: { description?: string; accept: Record<string, string[]> }[];
       }) => Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }>;
     };
-    if (typeof anyWin.showSaveFilePicker === 'function') {
+    // showSaveFilePicker is unavailable in cross-origin iframes (e.g. Lovable preview).
+    // Detect that case and skip straight to the prompt-based fallback so the
+    // user can still choose a filename.
+    const inIframe = (() => { try { return window.self !== window.top; } catch { return true; } })();
+    if (typeof anyWin.showSaveFilePicker === 'function' && !inIframe) {
       try {
         const handle = await anyWin.showSaveFilePicker({
           suggestedName: defaultName,
@@ -632,15 +636,23 @@ const PdfWorkspace = () => {
         await writable.close();
         return;
       } catch (err) {
-        // User cancelled — abort silently. Other errors fall through to anchor fallback.
         if ((err as { name?: string })?.name === 'AbortError') return;
+        // Other errors fall through to the prompt fallback below.
       }
     }
-    // Fallback for browsers without the File System Access API
+    // Fallback: ask the user for a filename, then trigger an anchor download.
+    // (Folder selection isn't possible without the File System Access API; the
+    // browser's default download folder will be used.)
+    const userName = window.prompt('Save as (filename):', defaultName);
+    if (userName === null) return; // user cancelled
+    let finalName = userName.trim() || defaultName;
+    if (!finalName.toLowerCase().endsWith(`.${ext.toLowerCase()}`)) {
+      finalName += `.${ext}`;
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = defaultName;
+    a.download = finalName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
