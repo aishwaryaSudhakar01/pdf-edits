@@ -72,7 +72,8 @@ export function preflightQueue(queue: QueueItem[], ctx: PreflightContext): Prefl
     for (const [pageIdx, anns] of ctx.annotationsMap.entries()) {
       for (const ann of anns) {
         if (ann.type === 'stamp') {
-          if (!ann.imageData || ann.imageData.length === 0) {
+          const stampBytes = ann.imageKey ? getImage(ann.imageKey)?.bytes : ann.imageData;
+          if (!stampBytes || stampBytes.length === 0) {
             issues.push({ operation: 'annotations', pageNumber: pageIdx + 1, message: `Page ${pageIdx + 1}: stamp has no image data` });
           } else if (!looksLikePng(ann.imageData) && !looksLikeJpg(ann.imageData)) {
             issues.push({ operation: 'annotations', pageNumber: pageIdx + 1, message: `Page ${pageIdx + 1}: stamp image is not a valid PNG or JPEG` });
