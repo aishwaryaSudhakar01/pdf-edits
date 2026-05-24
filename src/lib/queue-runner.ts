@@ -75,7 +75,7 @@ export function preflightQueue(queue: QueueItem[], ctx: PreflightContext): Prefl
           const stampBytes = ann.imageKey ? getImage(ann.imageKey)?.bytes : ann.imageData;
           if (!stampBytes || stampBytes.length === 0) {
             issues.push({ operation: 'annotations', pageNumber: pageIdx + 1, message: `Page ${pageIdx + 1}: stamp has no image data` });
-          } else if (!looksLikePng(ann.imageData) && !looksLikeJpg(ann.imageData)) {
+          } else if (!looksLikePng(stampBytes) && !looksLikeJpg(stampBytes)) {
             issues.push({ operation: 'annotations', pageNumber: pageIdx + 1, message: `Page ${pageIdx + 1}: stamp image is not a valid PNG or JPEG` });
           }
         } else if (ann.type === 'signature') {
