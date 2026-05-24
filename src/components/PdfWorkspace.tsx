@@ -610,7 +610,33 @@ const PdfWorkspace = () => {
   };
 
   /* ── Save helper ─────────────────────────────── */
-  const saveBlob = async (blob: Blob, defaultName: string, _mimeType = 'application/pdf', _ext = 'pdf') => {
+  const saveBlob = async (blob: Blob, defaultName: string, mimeType = 'application/pdf', ext = 'pdf') => {
+    // Prefer the File System Access API so users can pick folder + filename
+    const anyWin = window as unknown as {
+      showSaveFilePicker?: (opts: {
+        suggestedName?: string;
+        types?: { description?: string; accept: Record<string, string[]> }[];
+      }) => Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }>;
+    };
+    if (typeof anyWin.showSaveFilePicker === 'function') {
+      try {
+        const handle = await anyWin.showSaveFilePicker({
+          suggestedName: defaultName,
+          types: [{
+            description: ext.toUpperCase() + ' file',
+            accept: { [mimeType]: [`.${ext}`] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      } catch (err) {
+        // User cancelled — abort silently. Other errors fall through to anchor fallback.
+        if ((err as { name?: string })?.name === 'AbortError') return;
+      }
+    }
+    // Fallback for browsers without the File System Access API
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
