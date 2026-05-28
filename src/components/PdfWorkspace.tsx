@@ -1709,8 +1709,12 @@ const PdfWorkspace = () => {
 
               {/* Image → PDF */}
               {activeTool === 'imageToPdf' && uploadedImages.length > 0 && (
-                <div className="flex gap-4 items-center flex-wrap">
+                <div className="flex gap-3 items-center flex-wrap">
                   <p className="text-muted-foreground text-sm">{uploadedImages.length} image{uploadedImages.length !== 1 ? 's' : ''} ready</p>
+                  <div className="flex items-center gap-1">
+                    <Input value={imgToPdfName} onChange={e => setImgToPdfName(e.target.value)} placeholder="images" className="h-8 w-40 text-xs" />
+                    <span className="text-muted-foreground text-xs">.pdf</span>
+                  </div>
                   <div className="flex-1 min-w-4" />
                   <Button onClick={handleImageToPdf} disabled={processing} isLoading={processing} variant="positive">
                     <FileDown size={18} className="mr-2" /> Create PDF
@@ -1725,6 +1729,10 @@ const PdfWorkspace = () => {
                   <Button variant={exportFormat === 'png' ? 'default' : 'secondary'} size="mini" onClick={() => setExportFormat('png')}>PNG</Button>
                   <Button variant={exportFormat === 'jpg' ? 'default' : 'secondary'} size="mini" onClick={() => setExportFormat('jpg')}>JPG</Button>
                   <p className="text-muted-foreground text-sm">{pages.length} page{pages.length !== 1 ? 's' : ''}</p>
+                  <div className="flex items-center gap-1">
+                    <Input value={pdfToImgBaseName} onChange={e => setPdfToImgBaseName(e.target.value)} placeholder="page" className="h-8 w-32 text-xs" />
+                    <span className="text-muted-foreground text-xs">_N.{exportFormat}</span>
+                  </div>
                   <div className="flex-1 min-w-4" />
                   <Button onClick={handlePdfToImage} disabled={processing} isLoading={processing} variant="positive">
                     <Camera size={18} className="mr-2" /> Export
