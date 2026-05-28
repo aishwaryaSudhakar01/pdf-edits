@@ -396,9 +396,11 @@ const PdfWorkspace = () => {
 
   // Image→PDF
   const [uploadedImages, setUploadedImages] = useState<ImageFile[]>([]);
+  const [imgToPdfName, setImgToPdfName] = useState('images');
 
   // PDF→Image
   const [exportFormat, setExportFormat] = useState<'png' | 'jpg'>('png');
+  const [pdfToImgBaseName, setPdfToImgBaseName] = useState('page');
 
 
   // Annotations
