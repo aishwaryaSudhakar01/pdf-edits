@@ -879,13 +879,17 @@ const PdfWorkspace = () => {
   const handleImageToPdf = async () => {
     if (uploadedImages.length === 0) return;
     setProcessing(true);
-    try { await saveBlob(await imagesToPdf(uploadedImages.map(i => ({ data: i.data, type: i.type }))), 'images.pdf'); }
+    try {
+      const name = (imgToPdfName.trim() || 'images') + '.pdf';
+      await saveBlob(await imagesToPdf(uploadedImages.map(i => ({ data: i.data, type: i.type }))), name);
+    }
     catch (e) { console.error(e); } finally { setProcessing(false); }
   };
 
   const handlePdfToImage = async () => {
     setProcessing(true);
     try {
+      const base = pdfToImgBaseName.trim() || 'page';
       for (let i = 0; i < pages.length; i++) {
         const page = pages[i]; const src = sources.get(page.sourceFileId); if (!src) continue;
         const pdf = await pdfjsLib.getDocument({ data: src.buffer.slice(0) }).promise;
@@ -896,7 +900,7 @@ const PdfWorkspace = () => {
         await pdfPage.render({ canvasContext: ctx, viewport: vp }).promise;
         const mime = exportFormat === 'png' ? 'image/png' : 'image/jpeg';
         const blob = await new Promise<Blob>(res => canvas.toBlob(b => res(b!), mime, 0.95));
-        await saveBlob(blob, `page_${i + 1}.${exportFormat}`, mime, exportFormat);
+        await saveBlob(blob, `${base}_${i + 1}.${exportFormat}`, mime, exportFormat);
       }
     } catch (e) { console.error(e); } finally { setProcessing(false); }
   };
