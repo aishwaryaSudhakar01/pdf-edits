@@ -1864,7 +1864,7 @@ const PdfWorkspace = () => {
     {/* Footer link — always visible at bottom of viewport */}
     <div className="shrink-0 py-3 text-center border-t border-border bg-background/80 backdrop-blur-sm">
       <a href="https://aishwaryas-portfolio.lovable.app/" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-primary transition-colors underline underline-offset-2">
-        Built by -- Aishwarya Sudhakar - know more about me :)
+        Built by — Aishwarya Sudhakar — know more about me :)
       </a>
     </div>
     </div>
