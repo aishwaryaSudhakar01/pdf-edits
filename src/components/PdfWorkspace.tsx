@@ -396,11 +396,9 @@ const PdfWorkspace = () => {
 
   // Image→PDF
   const [uploadedImages, setUploadedImages] = useState<ImageFile[]>([]);
-  const [imgToPdfName, setImgToPdfName] = useState('images');
 
   // PDF→Image
   const [exportFormat, setExportFormat] = useState<'png' | 'jpg'>('png');
-  const [pdfToImgBaseName, setPdfToImgBaseName] = useState('page');
 
 
   // Annotations
@@ -879,17 +877,13 @@ const PdfWorkspace = () => {
   const handleImageToPdf = async () => {
     if (uploadedImages.length === 0) return;
     setProcessing(true);
-    try {
-      const name = (imgToPdfName.trim() || 'images') + '.pdf';
-      await saveBlob(await imagesToPdf(uploadedImages.map(i => ({ data: i.data, type: i.type }))), name);
-    }
+    try { await saveBlob(await imagesToPdf(uploadedImages.map(i => ({ data: i.data, type: i.type }))), 'images.pdf'); }
     catch (e) { console.error(e); } finally { setProcessing(false); }
   };
 
   const handlePdfToImage = async () => {
     setProcessing(true);
     try {
-      const base = pdfToImgBaseName.trim() || 'page';
       for (let i = 0; i < pages.length; i++) {
         const page = pages[i]; const src = sources.get(page.sourceFileId); if (!src) continue;
         const pdf = await pdfjsLib.getDocument({ data: src.buffer.slice(0) }).promise;
@@ -900,7 +894,7 @@ const PdfWorkspace = () => {
         await pdfPage.render({ canvasContext: ctx, viewport: vp }).promise;
         const mime = exportFormat === 'png' ? 'image/png' : 'image/jpeg';
         const blob = await new Promise<Blob>(res => canvas.toBlob(b => res(b!), mime, 0.95));
-        await saveBlob(blob, `${base}_${i + 1}.${exportFormat}`, mime, exportFormat);
+        await saveBlob(blob, `page_${i + 1}.${exportFormat}`, mime, exportFormat);
       }
     } catch (e) { console.error(e); } finally { setProcessing(false); }
   };
@@ -1709,12 +1703,8 @@ const PdfWorkspace = () => {
 
               {/* Image → PDF */}
               {activeTool === 'imageToPdf' && uploadedImages.length > 0 && (
-                <div className="flex gap-3 items-center flex-wrap">
+                <div className="flex gap-4 items-center flex-wrap">
                   <p className="text-muted-foreground text-sm">{uploadedImages.length} image{uploadedImages.length !== 1 ? 's' : ''} ready</p>
-                  <div className="flex items-center gap-1">
-                    <Input value={imgToPdfName} onChange={e => setImgToPdfName(e.target.value)} placeholder="images" className="h-8 w-40 text-xs" />
-                    <span className="text-muted-foreground text-xs">.pdf</span>
-                  </div>
                   <div className="flex-1 min-w-4" />
                   <Button onClick={handleImageToPdf} disabled={processing} isLoading={processing} variant="positive">
                     <FileDown size={18} className="mr-2" /> Create PDF
@@ -1729,10 +1719,6 @@ const PdfWorkspace = () => {
                   <Button variant={exportFormat === 'png' ? 'default' : 'secondary'} size="mini" onClick={() => setExportFormat('png')}>PNG</Button>
                   <Button variant={exportFormat === 'jpg' ? 'default' : 'secondary'} size="mini" onClick={() => setExportFormat('jpg')}>JPG</Button>
                   <p className="text-muted-foreground text-sm">{pages.length} page{pages.length !== 1 ? 's' : ''}</p>
-                  <div className="flex items-center gap-1">
-                    <Input value={pdfToImgBaseName} onChange={e => setPdfToImgBaseName(e.target.value)} placeholder="page" className="h-8 w-32 text-xs" />
-                    <span className="text-muted-foreground text-xs">_N.{exportFormat}</span>
-                  </div>
                   <div className="flex-1 min-w-4" />
                   <Button onClick={handlePdfToImage} disabled={processing} isLoading={processing} variant="positive">
                     <Camera size={18} className="mr-2" /> Export
