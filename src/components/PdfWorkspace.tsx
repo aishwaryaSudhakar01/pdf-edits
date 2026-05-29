@@ -1157,7 +1157,9 @@ const PdfWorkspace = () => {
 
   /* ── Render ──────────────────────────────────── */
   return (
-    <div className="flex h-screen min-w-0 w-full max-w-full overflow-hidden flex-col md:flex-row">
+    <div className="flex h-screen min-w-0 w-full max-w-full overflow-hidden flex-col">
+    <div className="flex flex-1 min-h-0 min-w-0 w-full overflow-hidden flex-col md:flex-row">
+
       {/* Hidden inputs */}
       <input ref={fileInputRef} type="file" accept=".pdf,application/pdf" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0" onChange={e => { if (e.target.files) addFiles(Array.from(e.target.files)); }} />
       <input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/jpg" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0" onChange={e => { if (e.target.files) addImages(Array.from(e.target.files)); }} />
@@ -1774,12 +1776,8 @@ const PdfWorkspace = () => {
         )}
       </div>
 
-      {/* Footer link */}
-      <div className="shrink-0 py-4 text-center border-t border-border">
-        <a href="https://aishwaryas-portfolio.lovable.app/" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-primary transition-colors underline underline-offset-2">
-          Aishwarya Sudhakar — know more about me :)
-        </a>
-      </div>
+
+
 
       {/* Processing Overlay */}
       {/* Preflight issues dialog */}
@@ -1863,7 +1861,15 @@ const PdfWorkspace = () => {
           onClose={closeOverlay} />;
       })()}
     </div>
+    {/* Footer link — always visible at bottom of viewport */}
+    <div className="shrink-0 py-3 text-center border-t border-border bg-background/80 backdrop-blur-sm">
+      <a href="https://aishwaryas-portfolio.lovable.app/" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-primary transition-colors underline underline-offset-2">
+        Aishwarya Sudhakar — know more about me :)
+      </a>
+    </div>
+    </div>
   );
+
 };
 
 export default PdfWorkspace;
