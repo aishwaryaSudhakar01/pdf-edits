@@ -1157,7 +1157,9 @@ const PdfWorkspace = () => {
 
   /* ── Render ──────────────────────────────────── */
   return (
-    <div className="flex h-screen min-w-0 w-full max-w-full overflow-hidden flex-col md:flex-row">
+    <div className="flex h-screen min-w-0 w-full max-w-full overflow-hidden flex-col">
+    <div className="flex flex-1 min-h-0 min-w-0 w-full overflow-hidden flex-col md:flex-row">
+
       {/* Hidden inputs */}
       <input ref={fileInputRef} type="file" accept=".pdf,application/pdf" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0" onChange={e => { if (e.target.files) addFiles(Array.from(e.target.files)); }} />
       <input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/jpg" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0" onChange={e => { if (e.target.files) addImages(Array.from(e.target.files)); }} />
