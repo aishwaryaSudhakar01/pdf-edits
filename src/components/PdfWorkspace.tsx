@@ -1776,12 +1776,8 @@ const PdfWorkspace = () => {
         )}
       </div>
 
-      {/* Footer link */}
-      <div className="shrink-0 py-4 text-center border-t border-border">
-        <a href="https://aishwaryas-portfolio.lovable.app/" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-primary transition-colors underline underline-offset-2">
-          Aishwarya Sudhakar — know more about me :)
-        </a>
-      </div>
+
+
 
       {/* Processing Overlay */}
       {/* Preflight issues dialog */}
